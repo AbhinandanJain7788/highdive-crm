@@ -4,6 +4,9 @@
 // Only "Interview Scheduled On" is meaningfully sparse — it is blank unless the candidate
 // actually has an interview booked, which matches their application_status.
 
+export const CANDIDATE_PRIORITIES = ["Unprioritized", "Low", "Medium", "High"] as const;
+export type CandidatePriority = (typeof CANDIDATE_PRIORITIES)[number];
+
 export type CandidateProfile = {
   email: string;
   altName: string;
@@ -22,6 +25,7 @@ export type CandidateProfile = {
   lastCtc: string;
   age: string;
   interviewScheduledOn: string;
+  priority: CandidatePriority;
 };
 
 export const candidateProfiles: Record<string, CandidateProfile> = {
@@ -43,6 +47,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹18.5 LPA",
     age: "28",
     interviewScheduledOn: "02 Sep 2026, 03:00 PM",
+    priority: "High",
   },
   c2: {
     email: "rohit.verma91@gmail.com",
@@ -62,6 +67,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹9.2 LPA",
     age: "26",
     interviewScheduledOn: "--",
+    priority: "Unprioritized",
   },
   c3: {
     email: "priya.nair@outlook.com",
@@ -81,6 +87,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹24.0 LPA",
     age: "31",
     interviewScheduledOn: "27 Aug 2026, 02:15 PM",
+    priority: "High",
   },
   c4: {
     email: "karan.malhotra@gmail.com",
@@ -100,6 +107,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹11.0 LPA",
     age: "29",
     interviewScheduledOn: "--",
+    priority: "Low",
   },
   c5: {
     email: "sneha.reddy@gmail.com",
@@ -119,6 +127,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹21.5 LPA",
     age: "30",
     interviewScheduledOn: "25 Aug 2026, 01:10 PM",
+    priority: "Medium",
   },
   c6: {
     email: "vikram.singh@yahoo.in",
@@ -138,6 +147,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹6.4 LPA",
     age: "25",
     interviewScheduledOn: "--",
+    priority: "Low",
   },
   c7: {
     email: "divya.iyer@gmail.com",
@@ -157,6 +167,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹14.0 LPA",
     age: "27",
     interviewScheduledOn: "--",
+    priority: "Medium",
   },
   c8: {
     email: "arjun.mehta@gmail.com",
@@ -176,6 +187,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹10.8 LPA",
     age: "26",
     interviewScheduledOn: "--",
+    priority: "Medium",
   },
   c9: {
     email: "neha.kapoor@gmail.com",
@@ -195,6 +207,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹7.5 LPA",
     age: "24",
     interviewScheduledOn: "--",
+    priority: "Low",
   },
   c10: {
     email: "rahul.chauhan@gmail.com",
@@ -214,6 +227,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹28.0 LPA",
     age: "30",
     interviewScheduledOn: "03 Sep 2026, 11:00 AM",
+    priority: "High",
   },
   c11: {
     email: "pooja.joshi@gmail.com",
@@ -233,6 +247,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹5.8 LPA",
     age: "23",
     interviewScheduledOn: "--",
+    priority: "Unprioritized",
   },
   c12: {
     email: "aditya.rao@gmail.com",
@@ -252,6 +267,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹42.0 LPA",
     age: "34",
     interviewScheduledOn: "12 Aug 2026, 10:00 AM",
+    priority: "High",
   },
   c13: {
     email: "simran.kaur@gmail.com",
@@ -271,6 +287,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "--",
     age: "22",
     interviewScheduledOn: "--",
+    priority: "Unprioritized",
   },
   c14: {
     email: "manish.gupta@gmail.com",
@@ -290,6 +307,7 @@ export const candidateProfiles: Record<string, CandidateProfile> = {
     lastCtc: "₹6.9 LPA",
     age: "25",
     interviewScheduledOn: "--",
+    priority: "Low",
   },
 };
 
@@ -311,6 +329,7 @@ const EMPTY_PROFILE: CandidateProfile = {
   lastCtc: "--",
   age: "--",
   interviewScheduledOn: "--",
+  priority: "Unprioritized",
 };
 
 export function candidateProfileFor(candidateId: string): CandidateProfile {

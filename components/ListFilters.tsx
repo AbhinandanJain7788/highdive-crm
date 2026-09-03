@@ -6,8 +6,10 @@ import {
   recruiters,
   usersSeed,
   statusStyles,
-  defaultPipelineStages,
+  crmStages,
+  crmStageForStatus,
   candidateProfileFor,
+  CANDIDATE_PRIORITIES,
   currentUser,
   type ApplicationStatus,
   type MockCandidate,
@@ -108,9 +110,28 @@ export const ALL_SOURCES = Array.from(new Set(candidatesSeed.map((c) => c.source
 export const UNASSIGNED_ID = "__unassigned__";
 export const ALL_USER_KEYS = [UNASSIGNED_ID, ...recruiters.map((r) => r.id)];
 
+// "Stage" in the filters means the CRM deal stage (Start / In Progress / Closed Won /
+// Closed Lost), not the 8-step recruitment funnel used on Job Detail and Reports.
 export function statusOptionsFor(mode: StatusMode) {
-  const values = mode === "status" ? ALL_STATUSES : defaultPipelineStages;
+  const values = mode === "status" ? ALL_STATUSES : crmStages;
   return values.map((v) => ({ id: v, label: mode === "status" ? statusStyles[v]?.label ?? v : v }));
+}
+
+// The value a row is matched against for the current Status/Stage mode.
+export function statusFilterValue(status: ApplicationStatus, mode: StatusMode): string {
+  return mode === "status" ? status : crmStageForStatus(status);
+}
+
+// "Filter By Location" searches the candidate's city / state / address / pincode.
+export function matchesLocation(candidateId: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const p = candidateProfileFor(candidateId);
+  return [p.city, p.state, p.country, p.address, p.pincode].some((v) => v.toLowerCase().includes(q));
+}
+
+export function priorityOf(candidateId: string): string {
+  return candidateProfileFor(candidateId).priority;
 }
 
 export const userOptions = [
@@ -219,6 +240,17 @@ export function ColumnsIcon() {
   );
 }
 
+export function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <rect x="1.6" y="2.8" width="12.8" height="11.4" rx="1.8" fill="none" stroke="#4B5565" strokeWidth="1.3" />
+      <line x1="1.6" y1="6.4" x2="14.4" y2="6.4" stroke="#4B5565" strokeWidth="1.3" />
+      <line x1="5" y1="1.4" x2="5" y2="4" stroke="#4B5565" strokeWidth="1.3" strokeLinecap="round" />
+      <line x1="11" y1="1.4" x2="11" y2="4" stroke="#4B5565" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function PeopleIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
@@ -309,14 +341,37 @@ export function PopoverShell({
   align?: "left" | "right";
   children: React.ReactNode;
 }) {
+  // These sit near the right edge of the toolbar and close to the bottom of a short
+  // page, so a fixed left/below placement clipped them out of view. Measure once on
+  // open and flip to the other side / above when there isn't room.
+  const [placement, setPlacement] = useState<{ side: "left" | "right"; above: boolean }>({ side: align, above: false });
+
+  useEffect(() => {
+    const el = outsideRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const pad = 8;
+    const overflowsRight = r.right > window.innerWidth - pad;
+    const overflowsLeft = r.left < pad;
+    const overflowsBottom = r.bottom > window.innerHeight - pad;
+    const enoughRoomAbove = r.top - r.height > pad;
+    setPlacement((prev) => {
+      const side = overflowsRight ? "right" : overflowsLeft ? "left" : prev.side;
+      const above = overflowsBottom && enoughRoomAbove;
+      return side === prev.side && above === prev.above ? prev : { side, above };
+    });
+  }, [outsideRef]);
+
   return (
     <div
       ref={outsideRef}
       style={{
         position: "absolute",
-        top: "calc(100% + 6px)",
-        [align]: 0,
+        ...(placement.above ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }),
+        ...(placement.side === "right" ? { right: 0 } : { left: 0 }),
         width,
+        maxHeight: "min(70vh, 420px)",
+        overflowY: "auto",
         background: "#FFFFFF",
         border: "1px solid #E7E9EE",
         borderRadius: 10,
@@ -575,21 +630,26 @@ export function DateRangeBar({
 export function MoreFiltersPanel({
   initialStatusMode,
   initialStatuses,
-  initialSources,
+  initialLocation,
+  initialPriorities,
+  showPriority = true,
   onCancel,
   onApply,
 }: {
   initialStatusMode: StatusMode;
   initialStatuses: Set<string>;
-  initialSources: Set<string>;
+  initialLocation: string;
+  initialPriorities: Set<string>;
+  showPriority?: boolean;
   onCancel: () => void;
-  onApply: (mode: StatusMode, statuses: Set<string>, sources: Set<string>) => void;
+  onApply: (mode: StatusMode, statuses: Set<string>, location: string, priorities: Set<string>) => void;
 }) {
   const [mode, setMode] = useState<StatusMode>(initialStatusMode);
   const [statuses, setStatuses] = useState<Set<string>>(new Set(initialStatuses));
-  const [sources, setSources] = useState<Set<string>>(new Set(initialSources));
+  const [location, setLocation] = useState(initialLocation);
+  const [priorities, setPriorities] = useState<Set<string>>(new Set(initialPriorities));
 
-  const statusOptions = mode === "status" ? ALL_STATUSES : defaultPipelineStages;
+  const statusOptions = mode === "status" ? ALL_STATUSES : crmStages;
   const statusLabel = (v: string) => (mode === "status" ? statusStyles[v]?.label ?? v : v);
 
   function toggle(set: Set<string>, setSet: (s: Set<string>) => void, v: string) {
@@ -606,22 +666,27 @@ export function MoreFiltersPanel({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 380, maxWidth: "90vw", height: "100%", background: "#FFFFFF", padding: 24, overflowY: "auto", display: "flex", flexDirection: "column" }}
+        style={{ width: 420, maxWidth: "92vw", height: "100%", background: "#FFFFFF", padding: 26, overflowY: "auto", display: "flex", flexDirection: "column" }}
       >
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 20 }}>More filters</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#4B5565", marginBottom: 24 }}>More filters</div>
 
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "#4B5565", marginBottom: 10 }}>Filter by Source</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
-          {ALL_SOURCES.map((s) => (
-            <div key={s} onClick={() => toggle(sources, setSources, s)} style={pillStyle(sources.has(s))}>
-              {s}
-            </div>
-          ))}
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#4B5565", marginBottom: 12 }}>Filter By Location</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid #D9DCE3", borderRadius: 8, padding: "12px 14px", marginBottom: 26 }}>
+          <svg width="16" height="16" viewBox="0 0 16 16">
+            <circle cx="7" cy="7" r="5" fill="none" stroke="#9AA1AC" strokeWidth="1.5" />
+            <line x1="11" y1="11" x2="15" y2="15" stroke="#9AA1AC" strokeWidth="1.5" />
+          </svg>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Search ..."
+            style={{ border: "none", outline: "none", fontSize: 14, flex: 1, color: "#1D2433", background: "transparent" }}
+          />
         </div>
 
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: "#4B5565", marginBottom: 10, display: "flex", alignItems: "center", gap: 18 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#4B5565", marginBottom: 14, display: "flex", alignItems: "center", gap: 22 }}>
           Filter by
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 500, cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontWeight: 500, cursor: "pointer", color: "#1D2433" }}>
             <input
               type="radio"
               checked={mode === "status"}
@@ -629,10 +694,11 @@ export function MoreFiltersPanel({
                 setMode("status");
                 setStatuses(new Set());
               }}
+              style={{ accentColor: "#FF5C35" }}
             />
             Status
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 500, cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontWeight: 500, cursor: "pointer", color: "#1D2433" }}>
             <input
               type="radio"
               checked={mode === "stage"}
@@ -640,11 +706,12 @@ export function MoreFiltersPanel({
                 setMode("stage");
                 setStatuses(new Set());
               }}
+              style={{ accentColor: "#FF5C35" }}
             />
             Stage
           </label>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 26 }}>
           {statusOptions.map((s) => (
             <div key={s} onClick={() => toggle(statuses, setStatuses, s)} style={pillStyle(statuses.has(s))}>
               {statusLabel(s)}
@@ -652,17 +719,30 @@ export function MoreFiltersPanel({
           ))}
         </div>
 
+        {showPriority && (
+          <>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#4B5565", marginBottom: 14 }}>Filter by Priority</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 26 }}>
+              {CANDIDATE_PRIORITIES.map((p) => (
+                <div key={p} onClick={() => toggle(priorities, setPriorities, p)} style={pillStyle(priorities.has(p))}>
+                  {p}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", gap: 10, paddingTop: 16, borderTop: "1px solid #EEF0F4" }}>
+        <div style={{ display: "flex", gap: 14, paddingTop: 18 }}>
           <button
             onClick={onCancel}
-            style={{ flex: 1, padding: "10px", borderRadius: 6, border: "1px solid #D9DCE3", background: "#FFFFFF", color: "#4B5565", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+            style={{ flex: 1, padding: "13px", borderRadius: 8, border: "1px solid #D9DCE3", background: "#FFFFFF", color: "#4B5565", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
           >
             Cancel
           </button>
           <button
-            onClick={() => onApply(mode, statuses, sources)}
-            style={{ flex: 1, padding: "10px", borderRadius: 6, border: "none", background: "#FF5C35", color: "#FFFFFF", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+            onClick={() => onApply(mode, statuses, location, priorities)}
+            style={{ flex: 1, padding: "13px", borderRadius: 8, border: "none", background: "#FF5C35", color: "#FFFFFF", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
           >
             Update
           </button>

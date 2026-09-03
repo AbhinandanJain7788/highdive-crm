@@ -9,13 +9,15 @@ import {
   candidateDayRank,
   candidateCreatedOnMs,
   statusStyles,
-  stageForStatus,
   type ApplicationStatus,
 } from "@/lib/mock";
 import {
   COLUMN_LABELS,
   DEFAULT_COLUMNS,
   statusOptionsFor,
+  statusFilterValue,
+  matchesLocation,
+  priorityOf,
   renderColumnCell,
   selectStyle,
   rangeBtnStyle,
@@ -52,7 +54,8 @@ export default function AllocationsPage() {
 
   const [statusMode, setStatusMode] = useState<StatusMode>("status");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [locationFilter, setLocationFilter] = useState("");
+  const [selectedPriorities, setSelectedPriorities] = useState<Set<string>>(new Set());
   const [userScope, setUserScope] = useState<UserScope>("selected");
 
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
@@ -79,13 +82,14 @@ export default function AllocationsPage() {
         rangeOk = ms >= bounds.from && ms <= bounds.to;
       }
       const searchOk = !q || c.name.toLowerCase().includes(q) || c.phone.replace(/\s/g, "").includes(q.replace(/\s/g, ""));
-      const statusValue = statusMode === "status" ? c.status : stageForStatus(c.status);
+      const statusValue = statusFilterValue(c.status, statusMode);
       const statusOk = selectedStatuses.size === 0 || selectedStatuses.has(statusValue);
-      const sourceOk = selectedSources.size === 0 || selectedSources.has(c.source);
+      const locationOk = matchesLocation(c.id, locationFilter);
+      const priorityOk = selectedPriorities.size === 0 || selectedPriorities.has(priorityOf(c.id));
       // "Common Pool" is the unassigned bucket; "Selected Users" is everything the
       // signed-in user's team owns, which for this mock is the whole list.
       const scopeOk = userScope === "selected" || c.recruiterId === null;
-      return rangeOk && searchOk && statusOk && sourceOk && scopeOk;
+      return rangeOk && searchOk && statusOk && locationOk && priorityOk && scopeOk;
     });
 
     list = [...list].sort((a, b) => {
@@ -96,7 +100,7 @@ export default function AllocationsPage() {
     });
 
     return list;
-  }, [search, allocationsRange, appliedDateRange, statusMode, selectedStatuses, selectedSources, userScope, sortKey]);
+  }, [search, allocationsRange, appliedDateRange, statusMode, selectedStatuses, locationFilter, selectedPriorities, userScope, sortKey]);
 
   const allocationsNewList = filtered.filter((c) => c.recruiterId === null);
   const allocationsAttemptedList = filtered.filter(
@@ -105,7 +109,8 @@ export default function AllocationsPage() {
   const visibleAllocations = allocationsTab === "new" ? allocationsNewList : allocationsAttemptedList;
   const allocationsCount = allocationsNewList.length + allocationsAttemptedList.length;
 
-  const activeFilterCount = (selectedStatuses.size > 0 ? 1 : 0) + (selectedSources.size > 0 ? 1 : 0);
+  const activeFilterCount =
+    (selectedStatuses.size > 0 ? 1 : 0) + (locationFilter.trim() ? 1 : 0) + (selectedPriorities.size > 0 ? 1 : 0);
 
   const statusOptions = statusOptionsFor(statusMode);
 
@@ -359,12 +364,14 @@ export default function AllocationsPage() {
         <MoreFiltersPanel
           initialStatusMode={statusMode}
           initialStatuses={selectedStatuses}
-          initialSources={selectedSources}
+          initialLocation={locationFilter}
+          initialPriorities={selectedPriorities}
           onCancel={() => setShowMoreFilters(false)}
-          onApply={(mode, statuses, sources) => {
+          onApply={(mode, statuses, location, priorities) => {
             setStatusMode(mode);
             setSelectedStatuses(statuses);
-            setSelectedSources(sources);
+            setLocationFilter(location);
+            setSelectedPriorities(priorities);
             setShowMoreFilters(false);
           }}
         />

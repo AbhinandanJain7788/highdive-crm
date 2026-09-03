@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { candidatesSeed, usersSeed, followUpsSeed, statusStyles, avatarLetterFor, candidateAvatarColor, stageForStatus } from "@/lib/mock";
+import { candidatesSeed, usersSeed, followUpsSeed, statusStyles, avatarLetterFor, candidateAvatarColor } from "@/lib/mock";
 import {
   statusOptionsFor,
+  statusFilterValue,
+  matchesLocation,
+  priorityOf,
   selectStyle,
   CheckboxListPopover,
   SortPopover,
@@ -11,8 +14,13 @@ import {
   IconButton,
   FunnelIcon,
   SortAzIcon,
+  CalendarIcon,
+  DateRangeBar,
+  DEFAULT_DATE_RANGE,
+  dateRangeBounds,
   type StatusMode,
   type SortKey,
+  type DateRange,
 } from "@/components/ListFilters";
 
 type FuTab = "pending" | "upcoming";
@@ -55,15 +63,21 @@ export default function FollowUpsPage() {
 
   const [statusMode, setStatusMode] = useState<StatusMode>("status");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [locationFilter, setLocationFilter] = useState("");
+  const [selectedPriorities, setSelectedPriorities] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("created-new");
+
+  const [showDateRange, setShowDateRange] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
+  const [appliedDateRange, setAppliedDateRange] = useState<DateRange | null>(null);
 
   const [openStatusPopover, setOpenStatusPopover] = useState(false);
   const [openSortPopover, setOpenSortPopover] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
 
   const statusOptions = statusOptionsFor(statusMode);
-  const activeFilterCount = (selectedStatuses.size > 0 ? 1 : 0) + (selectedSources.size > 0 ? 1 : 0);
+  const activeFilterCount =
+    (selectedStatuses.size > 0 ? 1 : 0) + (locationFilter.trim() ? 1 : 0) + (selectedPriorities.size > 0 ? 1 : 0);
 
   const enriched = useMemo(() => {
     return followUpsSeed.map((f) => {
@@ -74,6 +88,7 @@ export default function FollowUpsPage() {
       const style = statusStyles[status] ?? { bg: "#EEF0F5", color: "#5B6472", label: status };
       return {
         id: f.id,
+        candidateId: f.candidateId,
         name: candidate?.name ?? "Unknown",
         phone: candidate?.phone ?? "--",
         status,
@@ -98,10 +113,18 @@ export default function FollowUpsPage() {
     .filter((f) => f.bucket === followUpsTab)
     .filter((f) => {
       if (selectedStatuses.size === 0) return true;
-      const value = statusMode === "status" ? f.status : stageForStatus(f.status);
+      const value = statusFilterValue(f.status, statusMode);
       return selectedStatuses.has(value);
     })
-    .filter((f) => selectedSources.size === 0 || selectedSources.has(f.source))
+    .filter((f) => matchesLocation(f.candidateId, locationFilter))
+    .filter((f) => selectedPriorities.size === 0 || selectedPriorities.has(priorityOf(f.candidateId)))
+    .filter((f) => {
+      // The calendar button narrows by the follow-up's own due date.
+      const bounds = appliedDateRange ? dateRangeBounds(appliedDateRange) : null;
+      if (!bounds) return true;
+      const ms = new Date(f.dueAtRaw).getTime();
+      return ms >= bounds.from && ms <= bounds.to;
+    })
     .filter((f) => !fuQuery || f.name.toLowerCase().includes(fuQuery) || f.phone.replace(/\s/g, "").includes(fuQuery.replace(/\s/g, "")));
 
   visibleFollowUps = [...visibleFollowUps].sort((a, b) => {
@@ -190,22 +213,13 @@ export default function FollowUpsPage() {
             Upcoming
           </div>
         </div>
-        <div style={{ width: 34, height: 34, borderRadius: 6, border: "1px solid #E7E9EE", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="15" height="15" viewBox="0 0 16 16">
-            <rect x="1.5" y="3" width="13" height="11" rx="1.5" fill="none" stroke="#4B5565" strokeWidth="1.3" />
-            <line x1="1.5" y1="6.4" x2="14.5" y2="6.4" stroke="#4B5565" strokeWidth="1.3" />
-          </svg>
-        </div>
-        <div style={{ position: "relative", width: 34, height: 34, borderRadius: 6, border: "1px solid #E7E9EE", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="15" height="15" viewBox="0 0 16 16">
-            <circle cx="5.5" cy="5.5" r="2.4" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <circle cx="11" cy="6.5" r="1.8" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <path d="M1.5 13c0-2 2-3.4 4-3.4S9.5 11 9.5 13" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-          </svg>
-          <div style={{ position: "absolute", top: -6, right: -6, background: "#FF5C35", color: "#FFFFFF", fontSize: 9.5, fontWeight: 700, borderRadius: 8, padding: "1px 5px" }}>
-            11
-          </div>
-        </div>
+        <IconButton
+          label="Select Date Range"
+          onClick={() => setShowDateRange((v) => !v)}
+          active={!!appliedDateRange}
+        >
+          <CalendarIcon />
+        </IconButton>
         <IconButton label="Filter" onClick={() => setShowMoreFilters(true)} active={activeFilterCount > 0}>
           <FunnelIcon />
         </IconButton>
@@ -218,6 +232,10 @@ export default function FollowUpsPage() {
           )}
         </div>
       </div>
+
+      {showDateRange && (
+        <DateRangeBar value={dateRange} onChange={setDateRange} onApply={() => setAppliedDateRange(dateRange)} />
+      )}
 
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
         <div
@@ -322,12 +340,14 @@ export default function FollowUpsPage() {
         <MoreFiltersPanel
           initialStatusMode={statusMode}
           initialStatuses={selectedStatuses}
-          initialSources={selectedSources}
+          initialLocation={locationFilter}
+          initialPriorities={selectedPriorities}
           onCancel={() => setShowMoreFilters(false)}
-          onApply={(mode, statuses, sources) => {
+          onApply={(mode, statuses, location, priorities) => {
             setStatusMode(mode);
             setSelectedStatuses(statuses);
-            setSelectedSources(sources);
+            setLocationFilter(location);
+            setSelectedPriorities(priorities);
             setShowMoreFilters(false);
           }}
         />

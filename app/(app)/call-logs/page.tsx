@@ -264,41 +264,6 @@ export default function CallLogsPage() {
             Select Range
           </div>
         </div>
-        <div
-          style={{
-            position: "relative",
-            width: 34,
-            height: 34,
-            borderRadius: 6,
-            border: "1px solid #E7E9EE",
-            background: "#FFFFFF",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16">
-            <circle cx="5.5" cy="5.5" r="2.4" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <circle cx="11" cy="6.5" r="1.8" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <path d="M1.5 13c0-2 2-3.4 4-3.4S9.5 11 9.5 13" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-          </svg>
-          <div
-            style={{
-              position: "absolute",
-              top: -6,
-              right: -6,
-              background: "#FF5C35",
-              color: "#FFFFFF",
-              fontSize: 9.5,
-              fontWeight: 700,
-              borderRadius: 8,
-              padding: "1px 5px",
-            }}
-          >
-            11
-          </div>
-        </div>
         <div style={{ position: "relative" }}>
           <div onClick={() => setOpenUsersPopover((v) => !v)} style={{ ...selectStyle, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minWidth: 150 }}>
             {usersNarrowed ? `${selectedUserKeys.size} Users Selected` : "Selected Users"}

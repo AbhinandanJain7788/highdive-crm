@@ -78,40 +78,6 @@ export default function RechurnPage() {
         </select>
         <div
           style={{
-            position: "relative",
-            width: 38,
-            height: 38,
-            borderRadius: 7,
-            border: "1px solid #E7E9EE",
-            background: "#FFFFFF",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <circle cx="5.5" cy="5.5" r="2.4" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <circle cx="11" cy="6.5" r="1.8" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-          </svg>
-          <div
-            style={{
-              position: "absolute",
-              top: -7,
-              right: -7,
-              background: "#FF5C35",
-              color: "#FFFFFF",
-              fontSize: 9.5,
-              fontWeight: 700,
-              borderRadius: 8,
-              padding: "1px 5px",
-            }}
-          >
-            11
-          </div>
-        </div>
-        <div
-          style={{
             width: 38,
             height: 38,
             borderRadius: 7,

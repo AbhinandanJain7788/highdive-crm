@@ -12,6 +12,7 @@ export const statusStyles: Record<string, { label: string; bg: string; color: st
   selected: { label: "Selected", bg: "#E6F4EA", color: "#1E7F43" },
   joined: { label: "Joined", bg: "#DCF5E1", color: "#157347" },
   rejected: { label: "Rejected", bg: "#FDECEC", color: "#C0392B" },
+  not_eligible: { label: "Not Eligible", bg: "#EEF0F5", color: "#5B6472" },
 };
 
 export const dispositionStyles: Record<string, { bg: string; color: string }> = {

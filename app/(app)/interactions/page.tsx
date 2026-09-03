@@ -10,7 +10,6 @@ import {
   candidateAvatarColor,
   callDateRank,
   callDateMs,
-  stageForStatus,
   type ApplicationStatus,
 } from "@/lib/mock";
 import {
@@ -18,6 +17,9 @@ import {
   UNASSIGNED_ID,
   userOptions,
   statusOptionsFor,
+  statusFilterValue,
+  matchesLocation,
+  priorityOf,
   selectStyle,
   rangeBtnStyle,
   rangeStyle,
@@ -80,7 +82,8 @@ export default function InteractionsPage() {
 
   const [statusMode, setStatusMode] = useState<StatusMode>("status");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [locationFilter, setLocationFilter] = useState("");
+  const [selectedPriorities, setSelectedPriorities] = useState<Set<string>>(new Set());
   const [selectedUserKeys, setSelectedUserKeys] = useState<Set<string>>(new Set(ALL_USER_KEYS));
   const [sortKey, setSortKey] = useState<SortKey>("created-new");
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
@@ -123,7 +126,8 @@ export default function InteractionsPage() {
   }, [candidates]);
 
   const statusOptions = statusOptionsFor(statusMode);
-  const activeFilterCount = (selectedStatuses.size > 0 ? 1 : 0) + (selectedSources.size > 0 ? 1 : 0);
+  const activeFilterCount =
+    (selectedStatuses.size > 0 ? 1 : 0) + (locationFilter.trim() ? 1 : 0) + (selectedPriorities.size > 0 ? 1 : 0);
   const usersNarrowed = selectedUserKeys.size < ALL_USER_KEYS.length;
 
   let interactionRows = allRows;
@@ -151,12 +155,15 @@ export default function InteractionsPage() {
   }
   if (selectedStatuses.size > 0) {
     interactionRows = interactionRows.filter((r) => {
-      const value = statusMode === "status" ? r.status : stageForStatus(r.status);
+      const value = statusFilterValue(r.status, statusMode);
       return selectedStatuses.has(value);
     });
   }
-  if (selectedSources.size > 0) {
-    interactionRows = interactionRows.filter((r) => selectedSources.has(r.source));
+  if (locationFilter.trim()) {
+    interactionRows = interactionRows.filter((r) => matchesLocation(r.candidateId, locationFilter));
+  }
+  if (selectedPriorities.size > 0) {
+    interactionRows = interactionRows.filter((r) => selectedPriorities.has(priorityOf(r.candidateId)));
   }
   interactionRows = interactionRows.filter((r) => {
     const userKey = r.recruiterId === null ? UNASSIGNED_ID : r.recruiterId;
@@ -449,12 +456,14 @@ export default function InteractionsPage() {
         <MoreFiltersPanel
           initialStatusMode={statusMode}
           initialStatuses={selectedStatuses}
-          initialSources={selectedSources}
+          initialLocation={locationFilter}
+          initialPriorities={selectedPriorities}
           onCancel={() => setShowMoreFilters(false)}
-          onApply={(mode, statuses, sources) => {
+          onApply={(mode, statuses, location, priorities) => {
             setStatusMode(mode);
             setSelectedStatuses(statuses);
-            setSelectedSources(sources);
+            setLocationFilter(location);
+            setSelectedPriorities(priorities);
             setShowMoreFilters(false);
             setInteractionsPage(0);
           }}

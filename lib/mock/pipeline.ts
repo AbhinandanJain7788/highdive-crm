@@ -37,6 +37,36 @@ export function stageForStatus(status: ApplicationStatus): string {
     case "not_interested":
     case "no_response":
       return "Contacted";
+    case "not_eligible":
+      // Screened out, same as rejected — it never reaches an interview stage.
+      return "Screening";
+  }
+}
+
+// The CRM deal stages the "Filter by > Stage" pills use (Start / In Progress /
+// Closed Won / Closed Lost). Deliberately separate from defaultPipelineStages above:
+// that 8-step list is the recruitment funnel drawn on Job Detail and Reports, while
+// this 4-step list is the coarse deal stage the filters and Analytics work in.
+export const crmStages = ["Start", "In Progress", "Closed Won", "Closed Lost"];
+
+export function crmStageForStatus(status: ApplicationStatus): string {
+  switch (status) {
+    case "new":
+      return "Start";
+    case "contacted":
+    case "interview_scheduled":
+    case "interview_done":
+    case "no_response":
+      return "In Progress";
+    case "selected":
+    case "joined":
+      return "Closed Won";
+    case "rejected":
+    case "not_interested":
+    case "not_eligible":
+      return "Closed Lost";
+    default:
+      return "In Progress";
   }
 }
 

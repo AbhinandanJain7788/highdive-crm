@@ -10,12 +10,14 @@ import {
   withinCandidateRange,
   candidateDayRank,
   candidateCreatedOnMs,
-  stageForStatus,
 } from "@/lib/mock";
 import {
   COLUMN_LABELS,
   DEFAULT_COLUMNS,
   statusOptionsFor,
+  statusFilterValue,
+  matchesLocation,
+  priorityOf,
   userName,
   renderColumnCell,
   selectStyle,
@@ -49,7 +51,8 @@ export default function CandidatesListPage() {
 
   const [statusMode, setStatusMode] = useState<StatusMode>("status");
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
+  const [locationFilter, setLocationFilter] = useState("");
+  const [selectedPriorities, setSelectedPriorities] = useState<Set<string>>(new Set());
   const [userScope, setUserScope] = useState<UserScope>("selected");
 
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
@@ -75,11 +78,12 @@ export default function CandidatesListPage() {
         rangeOk = ms >= bounds.from && ms <= bounds.to;
       }
       const searchOk = !q || c.name.toLowerCase().includes(q) || c.phone.replace(/\s/g, "").includes(q.replace(/\s/g, ""));
-      const statusValue = statusMode === "status" ? c.status : stageForStatus(c.status);
+      const statusValue = statusFilterValue(c.status, statusMode);
       const statusOk = selectedStatuses.size === 0 || selectedStatuses.has(statusValue);
-      const sourceOk = selectedSources.size === 0 || selectedSources.has(c.source);
+      const locationOk = matchesLocation(c.id, locationFilter);
+      const priorityOk = selectedPriorities.size === 0 || selectedPriorities.has(priorityOf(c.id));
       const scopeOk = userScope === "selected" || c.recruiterId === null;
-      return rangeOk && searchOk && statusOk && sourceOk && scopeOk;
+      return rangeOk && searchOk && statusOk && locationOk && priorityOk && scopeOk;
     });
 
     list = [...list].sort((a, b) => {
@@ -99,9 +103,10 @@ export default function CandidatesListPage() {
       recruiterLabel: userName(c.recruiterId),
       showDedup: c.isDuplicate,
     }));
-  }, [search, range, appliedDateRange, statusMode, selectedStatuses, selectedSources, userScope, sortKey]);
+  }, [search, range, appliedDateRange, statusMode, selectedStatuses, locationFilter, selectedPriorities, userScope, sortKey]);
 
-  const activeFilterCount = (selectedStatuses.size > 0 ? 1 : 0) + (selectedSources.size > 0 ? 1 : 0);
+  const activeFilterCount =
+    (selectedStatuses.size > 0 ? 1 : 0) + (locationFilter.trim() ? 1 : 0) + (selectedPriorities.size > 0 ? 1 : 0);
   const statusOptions = statusOptionsFor(statusMode);
 
   function toggleStatus(id: string) {
@@ -371,12 +376,14 @@ export default function CandidatesListPage() {
         <MoreFiltersPanel
           initialStatusMode={statusMode}
           initialStatuses={selectedStatuses}
-          initialSources={selectedSources}
+          initialLocation={locationFilter}
+          initialPriorities={selectedPriorities}
           onCancel={() => setShowMoreFilters(false)}
-          onApply={(mode, statuses, sources) => {
+          onApply={(mode, statuses, location, priorities) => {
             setStatusMode(mode);
             setSelectedStatuses(statuses);
-            setSelectedSources(sources);
+            setLocationFilter(location);
+            setSelectedPriorities(priorities);
             setShowMoreFilters(false);
           }}
         />

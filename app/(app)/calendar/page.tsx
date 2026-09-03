@@ -1,7 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { candidatesSeed, usersSeed, followUpsSeed, statusStyles } from "@/lib/mock";
+import { candidatesSeed, usersSeed, followUpsSeed, statusStyles, type ApplicationStatus } from "@/lib/mock";
+import {
+  statusOptionsFor,
+  statusFilterValue,
+  matchesLocation,
+  selectStyle,
+  CheckboxListPopover,
+  MoreFiltersPanel,
+  IconButton,
+  FunnelIcon,
+  type StatusMode,
+} from "@/components/ListFilters";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -18,9 +29,23 @@ function userName(id: string): string {
   return usersSeed.find((u) => u.id === id)?.name ?? "--";
 }
 
+const monthNavBtnStyle: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  border: "1px solid #E7E9EE",
+  background: "#FFFFFF",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  padding: 0,
+};
+
 type CalEvent = {
+  candidateId: string;
   name: string;
-  status: string;
+  status: ApplicationStatus;
   statusLabel: string;
   assignedBy: string;
   assignTo: string;
@@ -39,12 +64,31 @@ function parseDueAt(iso: string): { year: number; month: number; day: number; ti
 }
 
 export default function CalendarPage() {
-  const [calMonth, setCalMonth] = useState(TODAY_MONTH);
-  const [calYear, setCalYear] = useState(TODAY_YEAR);
+  // Month and year move together — keeping them in one piece of state means a fast
+  // double-click on the arrows can't roll the month over while the year still reads
+  // the previous render's value, which is what made stepping through months jump.
+  const [view, setView] = useState({ year: TODAY_YEAR, month: TODAY_MONTH });
+  const calMonth = view.month;
+  const calYear = view.year;
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
-  const [calendarStatusFilter, setCalendarStatusFilter] = useState("All");
 
-  const statuses = Object.keys(statusStyles);
+  const [statusMode, setStatusMode] = useState<StatusMode>("status");
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [locationFilter, setLocationFilter] = useState("");
+  const [openStatusPopover, setOpenStatusPopover] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+
+  const statusOptions = statusOptionsFor(statusMode);
+  const activeFilterCount = (selectedStatuses.size > 0 ? 1 : 0) + (locationFilter.trim() ? 1 : 0);
+
+  function toggleStatus(id: string) {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Group follow-ups into per (year, month, day) event lists, enriched with candidate/user info.
   const eventsByYearMonthDay = useMemo(() => {
@@ -57,6 +101,7 @@ export default function CalendarPage() {
       const key = `${year}-${month}-${day}`;
       const list = map.get(key) ?? [];
       list.push({
+        candidateId: candidate.id,
         name: candidate.name,
         status: candidate.status,
         statusLabel: style.label,
@@ -73,16 +118,17 @@ export default function CalendarPage() {
   const eventsForDay = (year: number, month: number, day: number): CalEvent[] =>
     eventsByYearMonthDay.get(`${year}-${month}-${day}`) ?? [];
 
-  const calPrevMonth = () => {
-    setCalMonth((m) => (m === 0 ? 11 : m - 1));
-    setCalYear((y) => (calMonth === 0 ? y - 1 : y));
+  const stepMonth = (delta: number) => {
+    setView((v) => {
+      const next = v.month + delta;
+      if (next < 0) return { year: v.year - 1, month: 11 };
+      if (next > 11) return { year: v.year + 1, month: 0 };
+      return { year: v.year, month: next };
+    });
     setCalSelectedDay(null);
   };
-  const calNextMonth = () => {
-    setCalMonth((m) => (m === 11 ? 0 : m + 1));
-    setCalYear((y) => (calMonth === 11 ? y + 1 : y));
-    setCalSelectedDay(null);
-  };
+  const calPrevMonth = () => stepMonth(-1);
+  const calNextMonth = () => stepMonth(1);
 
   const firstOfMonth = new Date(calYear, calMonth, 1);
   const leading = (firstOfMonth.getDay() + 6) % 7;
@@ -116,7 +162,8 @@ export default function CalendarPage() {
   const todayEvents = isCurrentMonth ? eventsForDay(TODAY_YEAR, TODAY_MONTH, TODAY_DAY) : [];
   const calSelectedList = calSelectedDay ? eventsForDay(calYear, calMonth, calSelectedDay) : todayEvents;
   const calPanelEvents = calSelectedList
-    .filter((ev) => calendarStatusFilter === "All" || ev.status === calendarStatusFilter)
+    .filter((ev) => selectedStatuses.size === 0 || selectedStatuses.has(statusFilterValue(ev.status, statusMode)))
+    .filter((ev) => matchesLocation(ev.candidateId, locationFilter))
     .map((ev) => ({ ...ev, pending: !ev.done }));
   const calPanelTitle = calSelectedDay
     ? `${calSelectedDay} ${MONTH_NAMES[calMonth]}  ${calPanelEvents.length} Event${calPanelEvents.length === 1 ? "" : "s"}`
@@ -129,34 +176,43 @@ export default function CalendarPage() {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433" }}>Follow-up Calendar</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "#4B5565" }}>Follow-up Calendar</div>
         <select
-          value={calendarStatusFilter}
-          onChange={(e) => setCalendarStatusFilter(e.target.value)}
-          style={{ padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF", minWidth: 200 }}
+          value={statusMode}
+          onChange={(e) => {
+            setStatusMode(e.target.value as StatusMode);
+            setSelectedStatuses(new Set());
+          }}
+          style={{ ...selectStyle, padding: "9px 14px", fontSize: 13, minWidth: 140 }}
         >
-          <option value="All">Select Status</option>
-          {statuses.map((opt) => (
-            <option key={opt} value={opt}>
-              {statusStyles[opt].label}
-            </option>
-          ))}
+          <option value="status">By Status</option>
+          <option value="stage">By Stage</option>
         </select>
-        <div style={{ position: "relative", width: 38, height: 38, borderRadius: 7, border: "1px solid #E7E9EE", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <circle cx="5.5" cy="5.5" r="2.4" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <circle cx="11" cy="6.5" r="1.8" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-            <path d="M1.5 13c0-2 2-3.4 4-3.4S9.5 11 9.5 13" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-          </svg>
-          <div style={{ position: "absolute", top: -7, right: -7, background: "#FF5C35", color: "#FFFFFF", fontSize: 9.5, fontWeight: 700, borderRadius: 8, padding: "1px 5px" }}>
-            11
+        <div style={{ position: "relative" }}>
+          <div
+            onClick={() => setOpenStatusPopover((v) => !v)}
+            style={{ ...selectStyle, padding: "9px 14px", fontSize: 13, minWidth: 200, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+          >
+            {selectedStatuses.size > 0
+              ? `${selectedStatuses.size} selected`
+              : statusMode === "status"
+                ? "Select Status"
+                : "Select Stage"}
+            <span style={{ marginLeft: "auto", fontSize: 10, color: "#9AA1AC" }}>▾</span>
           </div>
+          {openStatusPopover && (
+            <CheckboxListPopover
+              options={statusOptions}
+              selected={selectedStatuses}
+              onToggle={toggleStatus}
+              onClose={() => setOpenStatusPopover(false)}
+              searchPlaceholder={statusMode === "status" ? "Search Status" : "Search Stage"}
+            />
+          )}
         </div>
-        <div style={{ width: 38, height: 38, borderRadius: 7, border: "1px solid #E7E9EE", background: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-          <svg width="15" height="15" viewBox="0 0 14 14">
-            <path d="M1 2h12M3.5 7h7M6 12h2" stroke="#4B5565" strokeWidth="1.3" fill="none" />
-          </svg>
-        </div>
+        <IconButton label="Filter" onClick={() => setShowMoreFilters(true)} active={activeFilterCount > 0}>
+          <FunnelIcon />
+        </IconButton>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
@@ -165,13 +221,27 @@ export default function CalendarPage() {
             <div style={{ fontSize: 26, color: "#1D2433" }}>
               <span style={{ fontWeight: 700 }}>{MONTH_NAMES[calMonth]}</span> <span style={{ fontWeight: 400, color: "#4B5565" }}>{calYear}</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <svg onClick={calPrevMonth} width="18" height="18" viewBox="0 0 18 18" style={{ cursor: "pointer" }}>
-                <path d="M11 3L5 9l6 6" fill="none" stroke="#4B5565" strokeWidth="1.6" />
-              </svg>
-              <svg onClick={calNextMonth} width="18" height="18" viewBox="0 0 18 18" style={{ cursor: "pointer" }}>
-                <path d="M7 3l6 6-6 6" fill="none" stroke="#4B5565" strokeWidth="1.6" />
-              </svg>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                type="button"
+                onClick={calPrevMonth}
+                aria-label="Previous month"
+                style={monthNavBtnStyle}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path d="M11 3L5 9l6 6" fill="none" stroke="#4B5565" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={calNextMonth}
+                aria-label="Next month"
+                style={monthNavBtnStyle}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path d="M7 3l6 6-6 6" fill="none" stroke="#4B5565" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
             </div>
           </div>
           <div style={{ fontSize: 13, color: "#6B7280", margin: "6px 0 18px" }}>Click on date to see follow-ups</div>
@@ -198,9 +268,11 @@ export default function CalendarPage() {
                   gap: 4,
                   cursor: "pointer",
                   borderRadius: 8,
+                  transition: "background 140ms ease, color 140ms ease",
                   ...cell.cellStyle,
                 }}
               >
+                {/* transition keeps the highlight from snapping when the month changes */}
                 {cell.hasEvents && (
                   <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "1px 7px", borderRadius: 10, ...cell.pillStyle }}>
                     <span style={{ width: 5, height: 5, borderRadius: "50%", background: cell.dotColor }} />
@@ -210,6 +282,9 @@ export default function CalendarPage() {
                 <div style={{ fontSize: 15, fontWeight: 600, color: cell.numColor }}>{cell.day}</div>
               </div>
             ))}
+          </div>
+          <div style={{ fontSize: 12.5, color: "#9AA1AC", fontStyle: "italic", marginTop: 14 }}>
+            Long press on a date to enable multi-select
           </div>
         </div>
 
@@ -299,10 +374,27 @@ export default function CalendarPage() {
                 </div>
               </div>
             ))}
-            {calNoEvents && <div style={{ fontSize: 13, color: "#9AA1AC", padding: "20px 0" }}>No follow-ups scheduled for this date.</div>}
+            {calNoEvents && <div style={{ fontSize: 13, color: "#9AA1AC", padding: "20px 0" }}>No Data to display</div>}
           </div>
         </div>
       </div>
+
+      {showMoreFilters && (
+        <MoreFiltersPanel
+          initialStatusMode={statusMode}
+          initialStatuses={selectedStatuses}
+          initialLocation={locationFilter}
+          initialPriorities={new Set()}
+          showPriority={false}
+          onCancel={() => setShowMoreFilters(false)}
+          onApply={(mode, statuses, location) => {
+            setStatusMode(mode);
+            setSelectedStatuses(statuses);
+            setLocationFilter(location);
+            setShowMoreFilters(false);
+          }}
+        />
+      )}
     </div>
   );
 }

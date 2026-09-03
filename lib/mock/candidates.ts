@@ -17,6 +17,7 @@ export type ApplicationStatus =
   | "rejected"
   | "not_interested"
   | "no_response"
+  | "not_eligible"
   | "joined";
 
 export type MockCandidate = {
