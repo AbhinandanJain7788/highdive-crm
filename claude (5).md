@@ -141,6 +141,10 @@ CLIENTS
 GET/POST  /api/clients                  list / create                                   manager+
 GET/PATCH /api/clients/:id              detail incl. jobs with this client              manager+
 
+RECRUITERS  (added Phase 3 — not in the original table)
+GET       /api/recruiters              directory with assignment/conversion metrics     view_all_records
+GET       /api/recruiters/:id          one recruiter incl. real assigned candidates     self, or view_all_records
+
 APPLICATIONS
 GET/POST  /api/applications             list / create                                   manager+
 PATCH     /api/applications/:id         update status / stage                           any (recruiter: own)
@@ -399,10 +403,74 @@ was ambiguous or silent:
   for Vivek, and the RBAC mechanism itself is fully generic (Roles & Permissions supports
   arbitrary roles already, live-tested above).
 
+## Phase 3 — As-Built Notes (read before Phase 4)
+
+- **Multi-job candidates (Open Question 5, now resolved):** the candidates list shows
+  one row per person, carrying their **most recent application** (status, job,
+  recruiter). Ananya Sharma's second application isn't hidden — it's on the detail
+  page's full application list, sorted newest-first. Chosen over one-row-per-application
+  because the list is explicitly a *candidate* list (claude.md: "candidate ≠
+  application"), and over earliest-application because a stale first role would
+  misrepresent where someone actually stands today. Per your explicit sign-off.
+- **Second pipeline template seeded** (`scratch-seed-pipeline.mjs`, run once, not part
+  of the app): "Bulk Hiring Pipeline" (5 stages: Sourced → Screened → Interview →
+  Offer → Joined), assigned to the 3 seeded jobs that read as high-volume/field roles
+  (Field Sales Executive, Customer Support Associate, Warehouse Supervisor), with their
+  applications' `pipeline_stage_id` remapped onto the new stage set using the same
+  status→stage inference Phase 0 used. This is what makes Checkpoint 2 ("two jobs on
+  different templates show different stage lists") genuinely testable instead of
+  vacuously true — verified live: Default Pipeline's 8 stages vs. Bulk Hiring's 5 render
+  as different lists for two real jobs, and per-stage counts match a direct DB count
+  for both. Per your explicit sign-off ("Seed a 2nd template").
+- **`GET /api/recruiters` and `GET /api/recruiters/:id` added** — not in claude.md's
+  original API Structure table (which never mentions the /recruiters screens Phase 3
+  Step 4 asks for). List is gated on `view_all_records` rather than left open: RLS
+  restricts `assignments` reads to the assignment's own recruiter, so any other
+  permission would return a "directory" where everyone but the caller shows 0
+  assigned/0% conversion — a 403 for non-managers is more honest than a page of silent
+  zeros. A recruiter can still read their own detail row.
+- **"Recruiter" is derived from permissions, not a role name or job title** — a
+  recruiter is precisely a user who lacks `view_all_records` (claude.md: never
+  hardcode a role name in a permission check). In the current 2-role seed that resolves
+  to the six `User`-role people, but stays correct if roles are renamed or a third role
+  is ever added.
+- **Assignment metrics (`assignedCount`, `conversion`) are computed over *active*
+  assignments only**, so the two numbers on a row stay mutually consistent — a
+  candidate unassigned after joining stops counting for that recruiter. `conversion`
+  is `(selected + joined) / assigned`, explicitly excluding the other terminal-but-
+  negative statuses (`rejected`, `not_interested`, `no_response`) from the numerator;
+  returns `0`, never `NaN`, when nothing is assigned.
+- **Call metrics left genuinely null, not faked.** "Calls Today," "Avg Talk Time," and
+  "Recent Call Activity" are out of scope until Phase 5 wires `calls`. Rather than a
+  page still rendering `candidatesSeed`/`callLogsSeed` imports alongside real data, the
+  recruiter API returns `callsToday: null` / `avgTalkSeconds: null` with a
+  `TODO(phase-5)` in `lib/recruiters.ts`, so the eventual swap is a single-file change
+  and nothing downstream is treating an absence as a real zero in the meantime.
+- **Known pitfall, not a Phase 3 bug — inherited from Phase 2's middleware:** an
+  unauthenticated request to any `/api/*` route (this phase's included) gets a `307`
+  redirect to `/login`, not the route handler's own `401 {error:{code,message}}` JSON —
+  `lib/supabase/middleware.ts` intercepts every non-public path before the handler
+  runs, by design, purely as a browser-navigation UX gate (its own comment: "a forged
+  cookie gets past this redirect but still cannot read or write anything," since RLS
+  and `requirePermission` are the authoritative layer). This is uniform across every
+  route in the app, not specific to candidates/jobs/clients/recruiters, and touching
+  shared middleware was out of this phase's scope — flagging for whoever picks up a
+  pure-API (non-browser) consumer of these routes.
+- **Self-audit run against the live dev server**, not just code review: signed in as
+  both an Admin and a real recruiter (Ayesha Khan) via `/api/auth/login`, then exercised
+  every checkpoint above with real HTTP requests, cross-checked against direct
+  service-role DB queries. Confirmed live: recruiter-scoped candidate list matches
+  Ayesha's actual `assignments`/`created_by` rows exactly (2 of 14) and not the full 14;
+  a recruiter gets 403 on `/api/clients`, `/api/jobs`, `/api/recruiters` but 200 on their
+  own recruiter page; a POST/PATCH round-trip (create candidate + application, patch
+  notes, blank phone with `""`) landed and cleared correctly, then was cleaned up. 22/23
+  checks passed on the first run; the one gap is the pre-existing middleware behavior
+  documented above, not a Phase 3 defect.
+
 ## Open Questions — confirm with Vivek before the phase that needs them
 
 1. **Disposition mismatch (blocks Phase 5).** Live enum is `interested | callback_later | not_reachable`. UI shows `Connected | Not Connected | Busy | Switched Off`. Options: (a) derive connection state from `duration_seconds` and keep the enum as outcome — recommended; (b) extend the enum. Do not alter the enum without a decision.
 2. **AI Score column (Phase 6).** The UI's Call Logs has an "AI Score" column and Analytics has an "AI Call Analytics" tab, both stubbed (`aiScoreLabel: '--'`, "coming soon"). AI is out of scope — confirm whether to remove these or keep them as permanently-disabled placeholders.
 3. **Recordings.** All `b2_url` / `storage_path` values are currently null. Confirm recordings are actually flowing before the Play Recording button is wired.
 4. **`calls.callback_due_at` vs `follow_ups`.** Both exist. Confirm `follow_ups` is authoritative and back-fills from `callback_due_at`, so there aren't two competing systems.
-5. **Multi-job candidates.** UI shows one job per candidate row. Confirm the display rule when a candidate applies to several jobs.
+5. ~~**Multi-job candidates.**~~ Resolved in Phase 3 — see its As-Built Notes: the list row shows the most recent application; the detail page lists all of them.
