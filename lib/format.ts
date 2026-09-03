@@ -1,4 +1,5 @@
 import "server-only";
+import { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "@/lib/candidates.shared";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -16,8 +17,8 @@ export function formatDisplayDate(value: string | null): string {
 // Every list endpoint takes `search`, `page`, `pageSize` and returns {data, total}
 // (claude.md > Conventions). The UI offers 10/25/50; anything else is clamped so a
 // hand-crafted ?pageSize=100000 can't turn a list route into a full-table dump.
-export const PAGE_SIZES = [10, 25, 50] as const;
-export const DEFAULT_PAGE_SIZE = 25;
+// Defined in the client-safe module so the page-size selector reads the same list.
+export { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "@/lib/candidates.shared";
 
 export type Pagination = { page: number; pageSize: number; from: number; to: number };
 

@@ -23,7 +23,9 @@ export type ClientRow = {
   createdAt: string;
 };
 
-export type ClientDetail = ClientRow & { jobs: Pick<JobRow, "id" | "title" | "status" | "openings" | "createdOn">[] };
+export type ClientDetail = ClientRow & {
+  jobs: Pick<JobRow, "id" | "title" | "status" | "openings" | "createdOn" | "applicationCount">[];
+};
 
 // `jobs(id, status)` rather than PostgREST's `jobs(count)` aggregate: the list needs
 // *open* jobs only, and an embedded count can't be filtered without an inner join —
@@ -31,7 +33,7 @@ export type ClientDetail = ClientRow & { jobs: Pick<JobRow, "id" | "title" | "st
 const CLIENT_SELECT = `
   id, company, contact_name, email, phone, industry, created_at, account_manager_id,
   manager:users!clients_account_manager_id_fkey(id, name),
-  jobs(id, title, status, openings, created_at)
+  jobs(id, title, status, openings, created_at, applications(count))
 `;
 
 type RawClient = {
@@ -44,7 +46,16 @@ type RawClient = {
   created_at: string;
   account_manager_id: string | null;
   manager: { id: string; name: string } | null;
-  jobs: { id: string; title: string; status: JobStatus; openings: number; created_at: string }[] | null;
+  jobs:
+    | {
+        id: string;
+        title: string;
+        status: JobStatus;
+        openings: number;
+        created_at: string;
+        applications: { count: number }[] | null;
+      }[]
+    | null;
 };
 
 function toClientRow(c: RawClient): ClientRow {
@@ -102,6 +113,7 @@ export async function getClientDetail(
       status: j.status,
       openings: j.openings,
       createdOn: formatDisplayDate(j.created_at),
+      applicationCount: j.applications?.[0]?.count ?? 0,
     }));
 
   return { ...toClientRow(data), jobs };

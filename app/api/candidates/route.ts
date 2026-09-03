@@ -39,6 +39,8 @@ export async function GET(request: Request) {
       statuses,
       sources,
       unassignedOnly: searchParams.get("unassigned") === "true",
+      createdFrom: searchParams.get("createdFrom") ?? undefined,
+      createdTo: searchParams.get("createdTo") ?? undefined,
       sort: SORT_KEYS.includes(sortParam as SortKey) ? (sortParam as SortKey) : undefined,
       pagination: readPagination(searchParams),
     });

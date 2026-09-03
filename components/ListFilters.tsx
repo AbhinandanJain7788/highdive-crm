@@ -879,19 +879,27 @@ export function ManageColumnsModal({
 const cellText: React.CSSProperties = { fontSize: 13, color: "#4B5565", overflow: "hidden", textOverflow: "ellipsis" };
 const cellMuted: React.CSSProperties = { fontSize: 12.5, color: "#9AA1AC", overflow: "hidden", textOverflow: "ellipsis" };
 
-export function renderColumnCell(id: ColumnId, c: MockCandidate) {
+// Rows may come from the mock seed or from the live `candidates` table. Live rows
+// carry a resolved `recruiterName`/`email`, which win when present — `userName()` and
+// the mock profiles are keyed by seed ids ("c1", "u3") and can't resolve a real uuid.
+// Every other customizable column still reads the mock profile: `candidates` has no
+// address / education / CTC / priority columns for them to read (see claude.md's
+// Phase 3 As-Built Notes).
+type ColumnCellRow = MockCandidate & { recruiterName?: string | null; email?: string | null };
+
+export function renderColumnCell(id: ColumnId, c: ColumnCellRow) {
   const p = candidateProfileFor(c.id);
   switch (id) {
     case "createdOn":
       return <div style={cellMuted}>{c.createdOn}</div>;
     case "assignTo":
-      return <div style={cellText}>{userName(c.recruiterId)}</div>;
+      return <div style={cellText}>{c.recruiterName ?? userName(c.recruiterId)}</div>;
     case "source":
       return <div style={cellText}>{c.source}</div>;
     case "notes":
       return <div style={cellMuted} title={c.notes || undefined}>{c.notes || "--"}</div>;
     case "email":
-      return <div style={cellText}>{p.email}</div>;
+      return <div style={cellText}>{c.email ?? p.email}</div>;
     case "address":
       return <div style={cellText} title={p.address}>{p.address}</div>;
     case "city":

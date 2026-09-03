@@ -1,24 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  candidatesSeed,
-  clientsSeed,
-  computeStageCounts,
-  jobsSeed,
-  jobStatusLabels,
-  statusStyles,
-  usersSeed,
-} from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getJobDetail } from "@/lib/jobs";
+import { jobStatusLabels, statusStyles } from "@/lib/mock";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = jobsSeed.find((j) => j.id === id);
+  const supabase = await createClient();
+  const job = await getJobDetail(supabase, id);
   if (!job) notFound();
-
-  const client = clientsSeed.find((k) => k.id === job.clientId);
-  const jobCandidates = candidatesSeed.filter((c) => c.jobId === job.id);
-  const stageCounts = computeStageCounts(jobCandidates);
-  const userNameById = new Map(usersSeed.map((u) => [u.id, u.name]));
 
   return (
     <div>
@@ -31,7 +21,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 16 }}>
         <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433", marginBottom: 4 }}>{job.title}</div>
-          <div style={{ fontSize: 13, color: "#9AA1AC", marginBottom: 16 }}>{client?.company ?? ""}</div>
+          <div style={{ fontSize: 13, color: "#9AA1AC", marginBottom: 16 }}>{job.clientName ?? ""}</div>
           <div
             style={{
               display: "grid",
@@ -52,16 +42,21 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             </div>
             <div>
               <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 3 }}>Applications</div>
-              {jobCandidates.length}
+              {job.applicationCount}
             </div>
             <div>
               <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 3 }}>Created On</div>
               {job.createdOn}
             </div>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 10 }}>Pipeline Breakdown</div>
-          {stageCounts.map((stage) => (
-            <div key={stage.stage} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 4 }}>Pipeline Breakdown</div>
+          {/* Every stage below comes from this job's own pipeline_template_id, in
+              sequence_order — a job on a different template renders a different list. */}
+          <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 10 }}>
+            {job.pipelineTemplate?.name ?? "No pipeline template"}
+          </div>
+          {job.stageCounts.map((stage) => (
+            <div key={stage.stageId} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div style={{ width: 120, fontSize: 12, color: "#4B5565", flexShrink: 0 }}>{stage.stage}</div>
               <div style={{ flex: 1, height: 7, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ height: "100%", background: "#FF5C35", borderRadius: 4, width: stage.pct }} />
@@ -71,6 +66,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               </div>
             </div>
           ))}
+          {job.unstagedCount > 0 && (
+            <div style={{ fontSize: 11.5, color: "#B15C00", marginTop: 8 }}>
+              {job.unstagedCount} application{job.unstagedCount === 1 ? "" : "s"} not yet on a pipeline stage
+            </div>
+          )}
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Candidates in this Job</div>
@@ -92,13 +92,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             <div>Recruiter</div>
             <div></div>
           </div>
-          {jobCandidates.map((c) => {
+          {job.applicants.map((c) => {
             const badge = statusStyles[c.status];
-            const recruiterLabel = c.recruiterId ? (userNameById.get(c.recruiterId) ?? "Unassigned") : "Unassigned";
             return (
               <Link
-                key={c.id}
-                href={`/candidates/${c.id}`}
+                key={c.applicationId}
+                href={`/candidates/${c.candidateId}`}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "2fr 1.3fr 1.2fr 1fr",
@@ -129,11 +128,16 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                     {badge.label}
                   </span>
                 </div>
-                <div style={{ fontSize: 12.5, color: "#4B5565" }}>{recruiterLabel}</div>
+                <div style={{ fontSize: 12.5, color: "#4B5565" }}>{c.recruiterName ?? "Unassigned"}</div>
                 <div style={{ fontSize: 12, color: "#FF5C35", textAlign: "right" }}>View →</div>
               </Link>
             );
           })}
+          {job.applicants.length === 0 && (
+            <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>
+              No candidates in this job yet.
+            </div>
+          )}
         </div>
       </div>
     </div>

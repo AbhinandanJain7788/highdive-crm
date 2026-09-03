@@ -1,24 +1,41 @@
 import Link from "next/link";
-import { callLogsSeed, candidatesSeed, liveStatusColors, liveStatusLabels, recruiters } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/permissions";
+import { getRecruiterRows } from "@/lib/recruiters";
+import { liveStatusColors, liveStatusLabels } from "@/lib/mock";
 
 const gridTemplateColumns = "2fr 1.2fr 1fr 1fr 1fr";
 
-export default function RecruitersListPage() {
-  const rows = recruiters.map((r) => {
-    const assigned = candidatesSeed.filter((c) => c.recruiterId === r.id);
-    const converted = assigned.filter((c) => c.status === "selected" || c.status === "joined");
-    const conversion = assigned.length ? Math.round((converted.length / assigned.length) * 100) : 0;
-    const callsToday = callLogsSeed.filter((l) => l.byUserId === r.id).length;
-    const dotColor = liveStatusColors[r.liveStatus ?? "offline"];
-    const liveStatusLabel = liveStatusLabels[r.liveStatus ?? "offline"];
-    return { ...r, assignedCount: assigned.length, callsToday, conversion, dotColor, liveStatusLabel };
-  });
+export default async function RecruitersListPage() {
+  const profile = await getCurrentUserProfile();
+
+  // RLS scopes `assignments` reads to the assignment's own recruiter, so without
+  // view_all_records this board would render every colleague at 0 assigned / 0%.
+  // Say so rather than showing numbers that are quietly wrong.
+  if (!profile?.permissions.includes("view_all_records")) {
+    return (
+      <div
+        style={{
+          background: "#FFFFFF",
+          border: "1px solid #E7E9EE",
+          borderRadius: 10,
+          padding: 40,
+          textAlign: "center",
+          color: "#6B7280",
+          fontSize: 13.5,
+        }}
+      >
+        The recruiter directory is only available to users who can view all records.
+      </div>
+    );
+  }
+
+  const supabase = await createClient();
+  const rows = await getRecruiterRows(supabase);
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>
-        {recruiters.length} Recruiters
-      </div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{rows.length} Recruiters</div>
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
         <div
           style={{
@@ -58,14 +75,31 @@ export default function RecruitersListPage() {
           >
             <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{r.name}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4B5565" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: r.dotColor, display: "inline-block" }} />
-              {r.liveStatusLabel}
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: liveStatusColors[r.liveStatus ?? "offline"],
+                  display: "inline-block",
+                }}
+              />
+              {liveStatusLabels[r.liveStatus ?? "offline"]}
             </div>
             <div style={{ fontSize: 13, color: "#1D2433" }}>{r.assignedCount}</div>
-            <div style={{ fontSize: 13, color: "#1D2433" }}>{r.callsToday}</div>
+            {/* TODO(phase-5): call metrics come from the `calls` table. Until that's
+                wired, this renders "--" rather than a fabricated 0. */}
+            <div style={{ fontSize: 13, color: "#9AA1AC" }} title="Wired in Phase 5">
+              {r.callsToday ?? "--"}
+            </div>
             <div style={{ fontSize: 13, color: "#1D2433" }}>{r.conversion}%</div>
           </Link>
         ))}
+        {rows.length === 0 && (
+          <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>
+            No recruiters found.
+          </div>
+        )}
       </div>
     </div>
   );

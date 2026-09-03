@@ -1,20 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { candidatesSeed, clientsSeed, jobsSeed, jobStatusLabels, jobStatusStyle, usersSeed } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getClientDetail } from "@/lib/clients";
+import { jobStatusLabels, jobStatusStyle } from "@/lib/mock";
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const client = clientsSeed.find((k) => k.id === id);
+  const supabase = await createClient();
+  const client = await getClientDetail(supabase, id);
+  // A row RLS hides is indistinguishable from one that doesn't exist — both 404.
   if (!client) notFound();
-
-  const accountManager = usersSeed.find((u) => u.id === client.accountManagerId);
-  const clientJobs = jobsSeed
-    .filter((j) => j.clientId === client.id)
-    .map((j) => {
-      const applications = candidatesSeed.filter((c) => c.jobId === j.id).length;
-      const { bg: statusBg, color: statusColor } = jobStatusStyle(j.status);
-      return { ...j, applications, statusBg, statusColor };
-    });
 
   return (
     <div>
@@ -29,19 +24,19 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{client.company}</div>
           <div style={{ fontSize: 13, color: "#1D2433", lineHeight: 1.8 }}>
             <div>
-              <span style={{ color: "#9AA1AC" }}>Contact:</span> {client.contactName}
+              <span style={{ color: "#9AA1AC" }}>Contact:</span> {client.contactName ?? "--"}
             </div>
             <div>
-              <span style={{ color: "#9AA1AC" }}>Email:</span> {client.email}
+              <span style={{ color: "#9AA1AC" }}>Email:</span> {client.email ?? "--"}
             </div>
             <div>
-              <span style={{ color: "#9AA1AC" }}>Phone:</span> {client.phone}
+              <span style={{ color: "#9AA1AC" }}>Phone:</span> {client.phone ?? "--"}
             </div>
             <div>
-              <span style={{ color: "#9AA1AC" }}>Industry:</span> {client.industry}
+              <span style={{ color: "#9AA1AC" }}>Industry:</span> {client.industry ?? "--"}
             </div>
             <div>
-              <span style={{ color: "#9AA1AC" }}>Account Manager:</span> {accountManager?.name ?? ""}
+              <span style={{ color: "#9AA1AC" }}>Account Manager:</span> {client.accountManager ?? "--"}
             </div>
           </div>
         </div>
@@ -65,41 +60,49 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             <div>Openings</div>
             <div>Applications</div>
           </div>
-          {clientJobs.map((j) => (
-            <Link
-              key={j.id}
-              href={`/jobs/${j.id}`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "2fr 1fr 0.9fr 1fr",
-                gap: 10,
-                alignItems: "center",
-                padding: "10px 10px",
-                borderBottom: "1px solid #F4F5F8",
-                cursor: "pointer",
-                textDecoration: "none",
-                color: "inherit",
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>{j.title}</div>
-              <div>
-                <span
-                  style={{
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    padding: "3px 8px",
-                    borderRadius: 20,
-                    background: j.statusBg,
-                    color: j.statusColor,
-                  }}
-                >
-                  {jobStatusLabels[j.status]}
-                </span>
-              </div>
-              <div style={{ fontSize: 13, color: "#1D2433" }}>{j.openings}</div>
-              <div style={{ fontSize: 13, color: "#1D2433" }}>{j.applications}</div>
-            </Link>
-          ))}
+          {client.jobs.map((j) => {
+            const { bg: statusBg, color: statusColor } = jobStatusStyle(j.status);
+            return (
+              <Link
+                key={j.id}
+                href={`/jobs/${j.id}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 1fr 0.9fr 1fr",
+                  gap: 10,
+                  alignItems: "center",
+                  padding: "10px 10px",
+                  borderBottom: "1px solid #F4F5F8",
+                  cursor: "pointer",
+                  textDecoration: "none",
+                  color: "inherit",
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>{j.title}</div>
+                <div>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      padding: "3px 8px",
+                      borderRadius: 20,
+                      background: statusBg,
+                      color: statusColor,
+                    }}
+                  >
+                    {jobStatusLabels[j.status]}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: "#1D2433" }}>{j.openings}</div>
+                <div style={{ fontSize: 13, color: "#1D2433" }}>{j.applicationCount}</div>
+              </Link>
+            );
+          })}
+          {client.jobs.length === 0 && (
+            <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>
+              No jobs with this client yet.
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,22 +1,29 @@
 import Link from "next/link";
-import { clientsSeed, jobsSeed, usersSeed } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getClientRows } from "@/lib/clients";
+import { DEFAULT_PAGE_SIZE } from "@/lib/format";
 
 const gridTemplateColumns = "2fr 1.4fr 1.4fr 1fr 1.2fr";
 
-export default function ClientsListPage() {
-  const userNameById = new Map(usersSeed.map((u) => [u.id, u.name]));
+// "Active Jobs" counts only `status='open'` — on_hold and closed are excluded, and
+// that rule lives in lib/clients.ts so the list and the API can't drift apart.
+export default async function ClientsListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page } = await searchParams;
+  const pageNumber = Math.max(1, Number(page) || 1);
+  const from = (pageNumber - 1) * DEFAULT_PAGE_SIZE;
 
-  const rows = clientsSeed.map((k) => ({
-    ...k,
-    activeJobs: jobsSeed.filter((j) => j.clientId === k.id && j.status === "open").length,
-    accountManager: userNameById.get(k.accountManagerId) ?? "",
-  }));
+  const supabase = await createClient();
+  const { rows, total } = await getClientRows(supabase, {
+    pagination: { page: pageNumber, pageSize: DEFAULT_PAGE_SIZE, from, to: from + DEFAULT_PAGE_SIZE - 1 },
+  });
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>
-        {clientsSeed.length} Clients
-      </div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{total} Clients</div>
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
         <div
           style={{
@@ -55,12 +62,15 @@ export default function ClientsListPage() {
             }}
           >
             <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{k.company}</div>
-            <div style={{ fontSize: 13, color: "#4B5565" }}>{k.contactName}</div>
-            <div style={{ fontSize: 13, color: "#4B5565" }}>{k.industry}</div>
+            <div style={{ fontSize: 13, color: "#4B5565" }}>{k.contactName ?? "--"}</div>
+            <div style={{ fontSize: 13, color: "#4B5565" }}>{k.industry ?? "--"}</div>
             <div style={{ fontSize: 13, color: "#1D2433" }}>{k.activeJobs}</div>
-            <div style={{ fontSize: 13, color: "#4B5565" }}>{k.accountManager}</div>
+            <div style={{ fontSize: 13, color: "#4B5565" }}>{k.accountManager ?? "--"}</div>
           </Link>
         ))}
+        {rows.length === 0 && (
+          <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>No clients yet.</div>
+        )}
       </div>
     </div>
   );

@@ -456,6 +456,60 @@ was ambiguous or silent:
   route in the app, not specific to candidates/jobs/clients/recruiters, and touching
   shared middleware was out of this phase's scope — flagging for whoever picks up a
   pure-API (non-browser) consumer of these routes.
+- **Screens wired, mocks removed.** `/candidates`, `/candidates/:id`, `/jobs`,
+  `/jobs/:id`, `/clients`, `/clients/:id`, `/recruiters` and `/recruiters/:id` all read
+  live data now. Jobs/clients/recruiters are server components calling the `lib/*`
+  query modules directly (the Team/Roles pattern — no HTTP hop for the first render);
+  the candidates list server-renders page 1 and then refetches `/api/candidates` as
+  filters change, so search, status, date-range, sort and paging are all resolved
+  **server-side** and stay correct across pages. `lib/candidates.shared.ts` holds the
+  row types and `PAGE_SIZES` because `lib/candidates.ts` and `lib/format.ts` are
+  `server-only` and a "use client" component can't import them.
+- **A pagination control was added to the candidates list** (rows-per-page 10/25/50 +
+  prev/next + an "x–y of n" counter). The signed-off HTML has no pager on this screen
+  at all, but Phase 3's checkpoint explicitly requires the 10/25/50 page sizes, so the
+  control is new UI — the only element added to a signed-off screen in this phase.
+- **`PATCH /api/applications/:id` added** so the candidate detail's Status dropdown
+  actually persists. It writes `status` and/or `pipeline_stage_id` and deliberately
+  does **not** auto-sync one from the other: they're separate vocabularies, and each
+  template names its stages differently, so inferring a stage from a status would
+  write a stage belonging to another template. It rejects a stage that doesn't belong
+  to the application's own job's template.
+- **Controls that can't persist yet are disabled, not fake.** Assigned Recruiter on the
+  candidate detail is now read-only text (reassignment writes `assignments` under the
+  one-active-assignment constraint — Phase 4's allocation flow); Schedule Follow-up and
+  Call History are disabled/empty with a "wired in Phase 5" note. The previous mock
+  page let you change these and silently discarded the change.
+- **GAP — the UI has a 10th status the database can't store.** The frontend's
+  `ApplicationStatus` now includes **`not_eligible`** (added during the styling pass,
+  with a label in `lib/mock/styles.ts` and mappings in `lib/mock/pipeline.ts`), but the
+  `application_status` enum has only the 9 values Phase 0 created. Selecting it on the
+  candidate detail returns a `400` from `PATCH /api/applications/:id` (validated
+  against the real enum) rather than a Postgres error, and filtering by it is dropped
+  from the query rather than sent — verified. **Resolving it needs a decision:** add
+  `not_eligible` to the enum (a migration, so it needs DDL access — see below), or drop
+  it from the UI.
+- **GAP — most "Manage Table Columns" columns have no backing schema.** The column
+  picker offers ~18 fields (Address, City, State, Country, Pincode, Alternate name/
+  phone, Highest Education, Institute, Years of Experience, Employment Type, Company,
+  Current Designation, Last CTC, Age, Interview Scheduled On) plus the **Filter by
+  Location** and **Priority** filters — none of which exist as columns on `candidates`.
+  They read `lib/mock/candidateProfiles.ts`, which is keyed by seed ids (`c1`…`c14`),
+  so against real uuids they render `--`, Location matches nothing and Priority buckets
+  everyone as "Unprioritized". Only Created On, Assign To, Source, Notes and Email are
+  genuinely DB-backed; `renderColumnCell` now prefers the live `recruiterName`/`email`
+  and falls back to the mock profile for the rest. Location/Priority are applied
+  client-side over the loaded page, which is also why they can't page correctly.
+  **Resolving it needs a decision:** extend `candidates` with those columns (a
+  migration), or drop the unbacked columns/filters from the UI.
+- **DDL is currently blocked from this session.** The Supabase MCP connector attached
+  here is authorized for a different account (it lists `jewellery-backend` and
+  `instashop-content`, not this project's `xvcnhfkrjghjxyyftkkm`), and the service-role
+  key only reaches PostgREST, which can't run DDL. So both gaps above, and the
+  `phone_digits` generated column noted in `lib/format.ts`, need either the Highdive
+  project connected to the Supabase connector, a DB password/personal access token, or
+  someone pasting the SQL into the dashboard's SQL editor. Data-only seeding (the
+  second pipeline template) worked fine through the service-role key.
 - **Self-audit run against the live dev server**, not just code review: signed in as
   both an Admin and a real recruiter (Ayesha Khan) via `/api/auth/login`, then exercised
   every checkpoint above with real HTTP requests, cross-checked against direct
@@ -466,6 +520,18 @@ was ambiguous or silent:
   notes, blank phone with `""`) landed and cleared correctly, then was cleaned up. 22/23
   checks passed on the first run; the one gap is the pre-existing middleware behavior
   documented above, not a Phase 3 defect.
+- **The wired screens were then verified as rendered HTML, not just as API responses**
+  (`scratch-verify-pages.mjs`, 15/15): every real candidate/job/client/recruiter name
+  appears on its list; the candidate detail shows real source/notes and the "Not
+  uploaded" resume state; the multi-application candidate shows its "Other
+  Applications" block; two jobs on different templates each render only their own
+  stages and none of the other template's; the recruiter directory is gated for a
+  non-manager instead of showing zeroed metrics; and **the candidates screen itself is
+  RLS-scoped** — signed in as Ayesha Khan the page renders exactly her 2 candidates out
+  of 14, with 0 leaked. Filter params were verified separately
+  (`scratch-verify-filters.mjs`, 7/7): status, stage-expansion, `createdFrom`/
+  `createdTo`, `unassigned`, sorting, and an unknown status being dropped rather than
+  sent to Postgres.
 
 ## Open Questions — confirm with Vivek before the phase that needs them
 

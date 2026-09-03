@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { escapeFilterValue, formatDisplayDate, phoneSearchPattern, type Pagination } from "@/lib/format";
+import type { CandidateRow, CandidateDetail } from "@/lib/candidates.shared";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
@@ -17,54 +18,20 @@ export const APPLICATION_STATUSES: ApplicationStatus[] = [
   "joined",
 ];
 
-// Field names deliberately mirror lib/mock/candidates.ts's MockCandidate so the list
-// screen's existing markup and components/ListFilters.tsx's renderColumnCell keep
-// working when the page swaps the seed array for this. `applicationCount` and the
-// `stage*`/`application*` fields are the additions real data makes possible.
-export type CandidateRow = {
-  id: string;
-  name: string;
-  phone: string;
-  email: string | null;
-  status: ApplicationStatus | null;
-  jobId: string | null;
-  jobTitle: string | null;
-  recruiterId: string | null;
-  recruiterName: string | null;
-  source: string;
-  createdOn: string;
-  createdAt: string;
-  isDuplicate: boolean;
-  hasResume: boolean;
-  notes: string;
-  applicationId: string | null;
-  stageId: string | null;
-  stageName: string | null;
-  applicationCount: number;
-};
-
-export type CandidateApplication = {
-  id: string;
-  status: ApplicationStatus;
-  createdOn: string;
-  createdAt: string;
-  job: { id: string; title: string; status: Database["public"]["Enums"]["job_status"] } | null;
-  recruiter: { id: string; name: string } | null;
-  stage: { id: string; name: string; sequenceOrder: number } | null;
-};
-
-export type CandidateDetail = Omit<CandidateRow, "applicationCount"> & {
-  resumeUrl: string | null;
-  duplicateOf: string | null;
-  createdBy: { id: string; name: string } | null;
-  applications: CandidateApplication[];
-};
+// Row/detail shapes live in lib/candidates.shared.ts so client components can import
+// them without pulling in this module's `server-only` marker.
+export type { CandidateRow, CandidateApplication, CandidateDetail } from "@/lib/candidates.shared";
 
 export type CandidateListOptions = {
   search?: string;
   statuses?: ApplicationStatus[];
   sources?: string[];
   unassignedOnly?: boolean;
+  // Inclusive ISO bounds on `created_at`, backing the Overall / Last 30 Days /
+  // Select Range tabs. Filtering here rather than in the browser keeps the range
+  // honest across pages — a client-side filter would only ever see the current one.
+  createdFrom?: string;
+  createdTo?: string;
   sort?: "name-asc" | "name-desc" | "created-new" | "created-old";
   pagination: Pagination;
 };
@@ -145,7 +112,7 @@ export async function getCandidateRows(
   supabase: SupabaseClient<Database>,
   options: CandidateListOptions
 ): Promise<{ rows: CandidateRow[]; total: number }> {
-  const { search, statuses, sources, unassignedOnly, sort = "created-new", pagination } = options;
+  const { search, statuses, sources, unassignedOnly, createdFrom, createdTo, sort = "created-new", pagination } = options;
 
   // An inner join is what makes a status filter actually exclude candidates; the
   // default embed is a left join and would keep every candidate regardless.
@@ -165,6 +132,8 @@ export async function getCandidateRows(
   if (statuses?.length) query = query.in("applications.status", statuses);
   if (sources?.length) query = query.in("source", sources);
   if (unassignedOnly) query = query.is("applications.assigned_recruiter_id", null);
+  if (createdFrom) query = query.gte("created_at", createdFrom);
+  if (createdTo) query = query.lte("created_at", createdTo);
 
   if (sort === "name-asc") query = query.order("name", { ascending: true });
   else if (sort === "name-desc") query = query.order("name", { ascending: false });
@@ -194,7 +163,7 @@ export async function getCandidateDetail(
   if (error) throw error;
   if (!data) return null;
 
-  const { applicationCount: _ignored, ...row } = toCandidateRow(data);
+  const row = toCandidateRow(data);
   const applications = [...(data.applications ?? [])]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .map((a) => ({
