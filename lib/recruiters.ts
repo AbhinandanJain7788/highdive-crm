@@ -86,7 +86,7 @@ type RawRecruiter = {
 // is precisely a user whose visibility is scoped to their own assignments, i.e. one
 // who does *not* hold `view_all_records`. In the current seed that resolves to the
 // six `User`-role people, but it keeps working if roles are renamed or added.
-async function recruiterRoleFilter(supabase: SupabaseClient<Database>): Promise<string[]> {
+export async function recruiterRoleFilter(supabase: SupabaseClient<Database>): Promise<string[]> {
   const { data, error } = await supabase
     .from("role_permissions")
     .select("role_id, permissions!inner(key)")

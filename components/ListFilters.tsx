@@ -23,75 +23,23 @@ export type UserScope = "selected" | "pool";
 export const FIXED_COLUMN_LABELS = ["Name & Phone Number", "Status"];
 
 // Everything under "Available columns to customize", in the order the design lists them.
-export type ColumnId =
-  | "email"
-  | "address"
-  | "city"
-  | "state"
-  | "country"
-  | "pincode"
-  | "altName"
-  | "altPhone"
-  | "notes"
-  | "interviewScheduledOn"
-  | "highestEducation"
-  | "instituteName"
-  | "yearsOfExperience"
-  | "employmentType"
-  | "createdOn"
-  | "assignTo"
-  | "companyName"
-  | "source"
-  | "currentDesignation"
-  | "lastCtc"
-  | "age";
+// Originally 21 fields per the signed-off HTML; trimmed in Phase 4 to the 5 that are
+// genuinely backed by the `candidates`/`applications` schema (claude.md's Phase 3 As-Built
+// Notes flagged the rest — address/city/state/country/pincode/altName/altPhone/notes-dup/
+// interviewScheduledOn/highestEducation/instituteName/yearsOfExperience/employmentType/
+// companyName/currentDesignation/lastCtc/age — as reading a mock profile keyed by seed ids
+// that renders "--" for every real uuid. Decision: drop the unbacked columns from the UI
+// rather than add 16 new schema columns nothing else in the product needs yet.
+export type ColumnId = "email" | "notes" | "createdOn" | "assignTo" | "source";
 
-export const ALL_COLUMN_IDS: ColumnId[] = [
-  "email",
-  "address",
-  "city",
-  "state",
-  "country",
-  "pincode",
-  "altName",
-  "altPhone",
-  "notes",
-  "interviewScheduledOn",
-  "highestEducation",
-  "instituteName",
-  "yearsOfExperience",
-  "employmentType",
-  "createdOn",
-  "assignTo",
-  "companyName",
-  "source",
-  "currentDesignation",
-  "lastCtc",
-  "age",
-];
+export const ALL_COLUMN_IDS: ColumnId[] = ["email", "notes", "createdOn", "assignTo", "source"];
 
 export const COLUMN_LABELS: Record<ColumnId, string> = {
   email: "Email",
-  address: "Address",
-  city: "City",
-  state: "State",
-  country: "Country",
-  pincode: "Pincode",
-  altName: "Alternate name",
-  altPhone: "Alternate phone",
   notes: "Notes",
-  interviewScheduledOn: "Interview Scheduled On",
-  highestEducation: "Highest Education",
-  instituteName: "Institute Name",
-  yearsOfExperience: "Years of Experience",
-  employmentType: "Employment Type",
   createdOn: "Created On",
   assignTo: "Assign To",
-  companyName: "Company name",
   source: "Source",
-  currentDesignation: "Current Designation",
-  lastCtc: "Last CTC",
-  age: "Age",
 };
 
 // At most 10 of the customizable columns can be on at once.
@@ -882,9 +830,6 @@ const cellMuted: React.CSSProperties = { fontSize: 12.5, color: "#9AA1AC", overf
 // Rows may come from the mock seed or from the live `candidates` table. Live rows
 // carry a resolved `recruiterName`/`email`, which win when present — `userName()` and
 // the mock profiles are keyed by seed ids ("c1", "u3") and can't resolve a real uuid.
-// Every other customizable column still reads the mock profile: `candidates` has no
-// address / education / CTC / priority columns for them to read (see claude.md's
-// Phase 3 As-Built Notes).
 type ColumnCellRow = MockCandidate & { recruiterName?: string | null; email?: string | null };
 
 export function renderColumnCell(id: ColumnId, c: ColumnCellRow) {
@@ -900,38 +845,6 @@ export function renderColumnCell(id: ColumnId, c: ColumnCellRow) {
       return <div style={cellMuted} title={c.notes || undefined}>{c.notes || "--"}</div>;
     case "email":
       return <div style={cellText}>{c.email ?? p.email}</div>;
-    case "address":
-      return <div style={cellText} title={p.address}>{p.address}</div>;
-    case "city":
-      return <div style={cellText}>{p.city}</div>;
-    case "state":
-      return <div style={cellText}>{p.state}</div>;
-    case "country":
-      return <div style={cellText}>{p.country}</div>;
-    case "pincode":
-      return <div style={cellText}>{p.pincode}</div>;
-    case "altName":
-      return <div style={cellText}>{p.altName}</div>;
-    case "altPhone":
-      return <div style={cellText}>{p.altPhone}</div>;
-    case "interviewScheduledOn":
-      return <div style={cellMuted}>{p.interviewScheduledOn}</div>;
-    case "highestEducation":
-      return <div style={cellText}>{p.highestEducation}</div>;
-    case "instituteName":
-      return <div style={cellText}>{p.instituteName}</div>;
-    case "yearsOfExperience":
-      return <div style={cellText}>{p.yearsOfExperience}</div>;
-    case "employmentType":
-      return <div style={cellText}>{p.employmentType}</div>;
-    case "companyName":
-      return <div style={cellText}>{p.companyName}</div>;
-    case "currentDesignation":
-      return <div style={cellText} title={p.currentDesignation}>{p.currentDesignation}</div>;
-    case "lastCtc":
-      return <div style={cellText}>{p.lastCtc}</div>;
-    case "age":
-      return <div style={cellText}>{p.age}</div>;
   }
 }
 

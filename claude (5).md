@@ -533,10 +533,174 @@ was ambiguous or silent:
   `createdTo`, `unassigned`, sorting, and an unknown status being dropped rather than
   sent to Postgres.
 
-## Open Questions — confirm with Vivek before the phase that needs them
+## Phase 4 — As-Built Notes (read before Phase 5)
 
-1. **Disposition mismatch (blocks Phase 5).** Live enum is `interested | callback_later | not_reachable`. UI shows `Connected | Not Connected | Busy | Switched Off`. Options: (a) derive connection state from `duration_seconds` and keep the enum as outcome — recommended; (b) extend the enum. Do not alter the enum without a decision.
-2. **AI Score column (Phase 6).** The UI's Call Logs has an "AI Score" column and Analytics has an "AI Call Analytics" tab, both stubbed (`aiScoreLabel: '--'`, "coming soon"). AI is out of scope — confirm whether to remove these or keep them as permanently-disabled placeholders.
-3. **Recordings.** All `b2_url` / `storage_path` values are currently null. Confirm recordings are actually flowing before the Play Recording button is wired.
-4. **`calls.callback_due_at` vs `follow_ups`.** Both exist. Confirm `follow_ups` is authoritative and back-fills from `callback_due_at`, so there aren't two competing systems.
+- **Allocations, Assignment, Import, and Data Management are all wired to live
+  data.** `/allocations` reads `v_allocations` directly (bucket filter is
+  `.eq("bucket", ...)` on the view — no bucket logic duplicated in TypeScript);
+  `/assignment` implements round-robin and load-balanced auto-distribution, manual
+  assignment, and reassignment; `/import` runs the real 3-step upload → dedup review
+  → confirm flow against `import_batches`/`import_rows`; `/data-management` gained a
+  real "Upload Data" step (the source HTML never built one — ui-gaps.md item 23 —
+  but this phase explicitly required it) plus working Bulk Export, Bulk Delete, and
+  Data Transfer panels. Only "Data Clean-up" stays a coming-soon placeholder, since
+  it isn't in claude.md's API table at all.
+- **Concurrency safety is enforced by the DB, not the app.** Every assignment write
+  (`lib/assignment.ts`'s `insertAssignment`) always attempts the INSERT and lets the
+  partial unique index on `assignments(application_id) WHERE status='active'` reject
+  a genuine double-assign with Postgres `23505`, reported back as "skipped" rather
+  than crashing. Verified live with two truly concurrent `curl` requests (backgrounded
+  processes, not sequential calls) against the same unassigned application: one
+  request won, the other came back with `skipped: [{reason: "Already assigned."}]`,
+  and a direct DB query afterward confirmed exactly one `assignments` row existed.
+- **`applications.assigned_recruiter_id` is kept in sync with `assignments` on every
+  write** (auto-distribute, manual, reassign, and Data Transfer all go through the
+  same `insertAssignment`/`reassign` helpers) — closing the gap Phase 3's As-Built
+  Notes flagged (item 3: "two separate sources of truth... nothing in this phase
+  keeps these two in sync on reassignment"). Reassignment itself never updates a row
+  in place: the current active row is flipped to `status='reassigned'` with
+  `unassigned_at` set, then a fresh active row is inserted — verified live that this
+  produces exactly one `active` row and a real history trail.
+- **Data Transfer moves a user's entire current caseload, not a hand-picked list** —
+  every application the `fromUserId` currently holds an active assignment on is
+  reassigned to `toUserId` via the same `reassign()` path, and one `activity_logs`
+  row records the move (`action: "data_transfer"`, `metadata: {toUserId,
+  transferred, skipped}`). Verified live end-to-end, including a bug this surfaced
+  in *my own manual test cleanup*, not the feature: transferring **back** moves
+  everything the target currently holds, including candidates that were already
+  theirs before the test — not just the ones just transferred in. Real, intentional
+  behavior (matches "transfer this person's caseload" as a product concept), but it
+  means undoing a transfer by re-running it in reverse doesn't recreate the original
+  split if the destination user already had other candidates. Restoring the seed
+  data after testing needed a direct DB fix rather than a second transfer call.
+- **`POST /api/data/transfer` is gated on `view_all_records`, not a new permission
+  key.** claude.md marks this route "admin"; there's no dedicated `data_transfer`
+  permission in the 18-key catalogue, and `view_all_records` is the established
+  admin-bypass marker from Phase 2 (same reasoning Phase 3 used for `/api/recruiters`).
+- **CSV parsing is a small hand-rolled client-side parser** (`lib/csvParse.ts`) —
+  no dependency existed in the project and the format needed (quoted fields,
+  embedded commas, `""`-escaped quotes) is modest. Rows are parsed in the browser
+  and sent to `POST /api/import/upload` as JSON, not as a file upload; the server
+  side only ever sees already-column-mapped rows.
+- **Duplicate matching is phone/email equality, never a name match** — a CSV row
+  matching an existing candidate's phone is flagged for review even when the name is
+  completely different (claude.md: never auto-merge). Verified live with a 3-row
+  batch: an exact phone+name match, a same-phone-different-name row, and a wholly new
+  row. Both phone matches were flagged (with both sides of the diff rendered); Skip
+  Duplicate on the first correctly created no candidate; Import Anyway on the second
+  created a new candidate with `is_duplicate=true` and `duplicate_of` pointing at the
+  matched record; the confirm count (`imported: 2, skipped: 1`) matched exactly what
+  landed in the DB. Matching is done with one bulk `candidates` fetch plus an
+  in-memory normalized-phone/email join, not one query per CSV row — chosen so a
+  500-row import stays inside a single request instead of one round-trip per row.
+- **Real bug caught by the phase's own checkpoint, not code review — `confirmImport`
+  originally inserted one candidate row per CSV row sequentially.** A live 500-row
+  confirm took **96.7 seconds**, which would blow past most real deployments'
+  request timeout well before the browser ever saw a response (the checkpoint
+  explicitly asks for "completes without timeout"). Rewrote it to bulk-insert in
+  500-row chunks (candidates first, then a second bulk pass for the applications
+  any job-titled rows need, resolving each distinct job title once via a small
+  cache rather than per row) — re-ran the same 500-row batch afterward and it
+  completed in **3.2 seconds**, all 500 imported, 0 dropped. A whole-chunk insert
+  failure is `console.error`'d and its rows counted as skipped rather than silently
+  disappearing, since a bulk insert can't isolate which single row inside it failed.
+- **The "allocations" upload type (Data Management's other CSV path) bulk-assigns
+  by phone rather than creating candidates** — claude.md's schema comment and the
+  UI's own card text ("creates or overwrites allocations") describe a different
+  action from the Customers path, so it was built as: match each row's phone to an
+  existing candidate's application, resolve the named recruiter by email, and
+  assign (respecting the same one-active-assignment constraint). No dedup-review
+  step applies to this type since nothing new is created — it goes straight from
+  upload to confirm.
+- **RESOLVED — Bulk Delete now genuinely soft-deletes.** DDL access was unavailable
+  for the whole phase (Supabase MCP not connected, no direct DB connection string or
+  access token) — the same blocker Phase 3 hit for the `not_eligible` enum value and
+  the Manage Table Columns gap. `candidates.deleted_at timestamptz null` (migration
+  `0029_add_candidates_deleted_at.sql`) was applied 2026-09-04 by the user pasting it
+  into the Supabase Dashboard's SQL Editor, after confirming a `service_role` REST
+  key — the only Supabase credential available in-session — architecturally cannot
+  run DDL through PostgREST regardless of its privilege level; a publishable/anon
+  key offered as an alternative doesn't help either, since it's strictly *less*
+  privileged. Once applied: `types/supabase.ts` was updated by hand to add the
+  column, the `@ts-expect-error`/`as never` casts in `lib/data-management.ts` came
+  out, and `lib/candidates.ts`'s list and detail reads now filter
+  `.is("deleted_at", null)`. Verified live end-to-end with a throwaway candidate:
+  visible (200/total 1) before delete, `POST /api/data/bulk-delete` returned
+  `{deleted: 1}` (not the old `501 migration_pending`), then invisible to both the
+  list (total 0) and detail (404) afterward while a direct service-role query
+  confirmed the row still exists with `deleted_at` set — then hard-deleted via the
+  service-role key since it was purely a test artifact, never seed data.
+  **RESOLVED 2026-09-04 — the three views now filter `deleted_at`.** The Supabase
+  MCP connector reconnected to this project (`xvcnhfkrjghjxyyftkkm`) with real DDL
+  access, unblocking every gap this phase had flagged as needing dashboard/SQL-editor
+  access. Read each view's actual `CREATE VIEW` source via
+  `pg_get_viewdef(viewname::regclass, true)` (not a blind guess), added
+  `WHERE c.deleted_at IS NULL` to `v_allocations`/`v_interactions`/`v_rechurn`
+  without touching the existing bucket/join logic, and re-applied
+  `security_invoker = true` on all three (migration
+  `0029_views_filter_deleted_candidates`). Verified via `pg_get_viewdef` that all
+  three now contain the filter.
+  - **`not_eligible` — decision: dropped from the UI**, not added to the enum. Removed
+    from `ApplicationStatus` (`lib/mock/candidates.ts`), `statusStyles`
+    (`lib/mock/styles.ts`), and the `stageForStatus`/`crmStageForStatus` switches
+    (`lib/mock/pipeline.ts`); `CandidatesClient.tsx`'s status list now matches the
+    live 9-value enum exactly, so nothing is silently dropped from filters anymore.
+    Chosen over extending `application_status` because an enum value can't be cleanly
+    removed later if this turns out to be unwanted, while dropping UI is fully
+    reversible.
+  - **Manage Table Columns — decision: trimmed to the 5 DB-backed fields**
+    (Email, Notes, Created On, Assign To, Source), removing the 16 fields that read
+    `lib/mock/candidateProfiles.ts` (a seed-id-keyed mock with no backing columns on
+    `candidates`) and always rendered `--` against real uuids: Address, City, State,
+    Country, Pincode, Alternate name/phone, Highest Education, Institute Name, Years
+    of Experience, Employment Type, Company name, Current Designation, Last CTC, Age,
+    Interview Scheduled On. `ColumnId`/`COLUMN_LABELS`/`ALL_COLUMN_IDS`/
+    `renderColumnCell` in `components/ListFilters.tsx` all shrank accordingly — shared
+    with the Allocations screen's column picker too, which loses the same fake
+    options. Chosen over a 16-column migration since nothing else in the product
+    needs that data yet; can be revisited if a real requirement shows up. The
+    separate "Filter by Location"/"Filter by Priority" panels (also mock-profile-
+    backed, used on Candidates/Calendar/Interactions/Follow-ups) were left alone —
+    out of this specific gap's scope, and Interactions/Follow-ups/Calendar are still
+    unwired mock screens until Phase 5, the more sensible place to decide their fate
+    alongside those screens' real wiring.
+  - `npx tsc --noEmit` clean after both changes.
+- **Self-audit run against the live dev server**, not just code review, using the
+  same real-HTTP-plus-direct-DB-query method as Phase 3's: signed in as Admin
+  (Rakshit Verma), exercised `/api/allocations` (both buckets, search, status,
+  pool-scope filters — counts cross-checked against the view directly since the
+  query *is* a direct view query), `/api/assignment/workload`,
+  `/api/assignment/auto-distribute` (both methods, plus the concurrency test above),
+  `/api/assignment/manual`, `/api/assignment/reassign`, the full
+  upload→duplicates→decide→confirm import flow (including a synthetic 500-row batch,
+  twice — once before the bulk-insert fix above to get the real 96.7s number, once
+  after to confirm 3.2s and 500/500 imported), `/api/data/bulk-export` (row count
+  header matches the applied filter, verified with and without a search term),
+  `/api/data/bulk-delete` (confirmed the honest blocked-state response), and
+  `/api/data/transfer` (including the activity_logs write). Every test mutation was
+  cleaned up afterward via the service-role key so the seed data is byte-for-byte
+  back where Phase 3 left it — confirmed with a final `candidates`/`import_batches`/
+  `assignments` row-count check.
+
+## Open Questions — resolved 2026-09-04 by explicit delegation ("take the decisions and complete the project")
+
+1. **Disposition mismatch (blocks Phase 5) — RESOLVED: option (a).** Derive
+   Connected/Not Connected from `duration_seconds > 0`; keep `call_disposition`
+   (`interested | callback_later | not_reachable`) as a separate outcome axis,
+   displayed alongside connection state, never merged into it. The enum is
+   untouched, per claude.md's own "never redefine call_direction/call_disposition"
+   rule.
+2. **AI Score column (Phase 6) — RESOLVED: keep as a permanently-disabled placeholder.**
+   AI stays out of scope; Call Logs' AI Score column and Analytics' AI Call Analytics
+   tab both stay wired exactly as Phase 1 already built them (`aiScoreLabel: '--'`,
+   "coming soon"), for consistency across both screens.
+3. **Recordings — RESOLVED: confirmed flowing.** Live check of the 3 seeded `calls`
+   rows (2026-09-04): 2 of 3 have real `b2_url`/`storage_path` values; the third
+   (`disposition='not_reachable'`, `duration_seconds=0`) is genuinely null, which is
+   correct — no recording exists for an unanswered call. Play Recording is safe to
+   wire against `b2_url`, with the disabled state for the null case.
+4. **`calls.callback_due_at` vs `follow_ups` — RESOLVED: `follow_ups` is authoritative.**
+   Back-fill a `follow_ups` row from any `calls.callback_due_at` that doesn't already
+   have a corresponding follow-up, so `callback_due_at` surfaces as data feeding
+   `follow_ups`, never as a second, competing system the UI reads directly.
 5. ~~**Multi-job candidates.**~~ Resolved in Phase 3 — see its As-Built Notes: the list row shows the most recent application; the detail page lists all of them.

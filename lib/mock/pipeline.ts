@@ -37,9 +37,6 @@ export function stageForStatus(status: ApplicationStatus): string {
     case "not_interested":
     case "no_response":
       return "Contacted";
-    case "not_eligible":
-      // Screened out, same as rejected — it never reaches an interview stage.
-      return "Screening";
   }
 }
 
@@ -63,7 +60,6 @@ export function crmStageForStatus(status: ApplicationStatus): string {
       return "Closed Won";
     case "rejected":
     case "not_interested":
-    case "not_eligible":
       return "Closed Lost";
     default:
       return "In Progress";

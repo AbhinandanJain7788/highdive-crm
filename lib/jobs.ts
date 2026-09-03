@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { escapeFilterValue, formatDisplayDate, type Pagination } from "@/lib/format";
 
-type JobStatus = Database["public"]["Enums"]["job_status"];
+export type JobStatus = Database["public"]["Enums"]["job_status"];
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
 export const JOB_STATUSES: JobStatus[] = ["open", "on_hold", "closed"];

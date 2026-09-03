@@ -6,21 +6,11 @@ import type { CandidateRow, CandidateDetail } from "@/lib/candidates.shared";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
-export const APPLICATION_STATUSES: ApplicationStatus[] = [
-  "new",
-  "contacted",
-  "interview_scheduled",
-  "interview_done",
-  "selected",
-  "rejected",
-  "not_interested",
-  "no_response",
-  "joined",
-];
-
-// Row/detail shapes live in lib/candidates.shared.ts so client components can import
-// them without pulling in this module's `server-only` marker.
+// Row/detail shapes and APPLICATION_STATUSES live in lib/candidates.shared.ts so
+// client components can import them without pulling in this module's `server-only`
+// marker.
 export type { CandidateRow, CandidateApplication, CandidateDetail } from "@/lib/candidates.shared";
+export { APPLICATION_STATUSES } from "@/lib/candidates.shared";
 
 export type CandidateListOptions = {
   search?: string;
@@ -119,7 +109,7 @@ export async function getCandidateRows(
   const needsInnerJoin = Boolean(statuses?.length) || unassignedOnly;
   const select = `${CANDIDATE_COLUMNS}, applications${needsInnerJoin ? "!inner" : ""}(${APPLICATION_EMBED})`;
 
-  let query = supabase.from("candidates").select(select, { count: "exact" });
+  let query = supabase.from("candidates").select(select, { count: "exact" }).is("deleted_at", null);
 
   if (search?.trim()) {
     const term = escapeFilterValue(search);
@@ -159,6 +149,7 @@ export async function getCandidateDetail(
        applications(${APPLICATION_EMBED})`
     )
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle<RawCandidate>();
   if (error) throw error;
   if (!data) return null;

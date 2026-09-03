@@ -12,6 +12,21 @@ type JobStatus = Database["public"]["Enums"]["job_status"];
 export const PAGE_SIZES = [10, 25, 50] as const;
 export const DEFAULT_PAGE_SIZE = 25;
 
+// The nine values `application_status` actually holds — lives here (not
+// lib/candidates.ts) so client components can read it without pulling in a
+// `server-only` module.
+export const APPLICATION_STATUSES: ApplicationStatus[] = [
+  "new",
+  "contacted",
+  "interview_scheduled",
+  "interview_done",
+  "selected",
+  "rejected",
+  "not_interested",
+  "no_response",
+  "joined",
+];
+
 // Field names deliberately mirror lib/mock/candidates.ts's MockCandidate so the list
 // screen's existing markup and components/ListFilters.tsx's renderColumnCell keep
 // working when the page swaps the seed array for this.

@@ -1,3 +1,7 @@
+// TODO(phase-6): this whole page — Pipeline Funnel, Call Outcomes, and Calls by
+// Recruiter — is still mock data, including computeStageCounts' hardcoded stage
+// names. Phase 6 (Dashboard & Analytics) wires it to real applications/calls and
+// should read pipeline stage names from pipeline_stages, not lib/mock/pipeline.ts.
 import { callLogsSeed, candidatesSeed, computeStageCounts, dispositionStyles, fmtDuration, recruiters } from "@/lib/mock";
 
 const dispositions: Array<keyof typeof dispositionStyles> = ["Connected", "Not Connected", "Busy", "Switched Off"];

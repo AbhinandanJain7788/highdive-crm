@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/permissions";
 import { getJobDetail } from "@/lib/jobs";
-import { jobStatusLabels, statusStyles } from "@/lib/mock";
+import { statusStyles } from "@/lib/mock";
+import JobStatusPanel from "./JobStatusPanel";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const job = await getJobDetail(supabase, id);
+  const [profile, job] = await Promise.all([getCurrentUserProfile(), getJobDetail(supabase, id)]);
   if (!job) notFound();
 
   return (
@@ -32,10 +34,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               marginBottom: 18,
             }}
           >
-            <div>
-              <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 3 }}>Status</div>
-              {jobStatusLabels[job.status]}
-            </div>
+            <JobStatusPanel
+              jobId={job.id}
+              status={job.status}
+              canEdit={profile?.permissions.includes("manage_jobs") ?? false}
+            />
             <div>
               <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 3 }}>Openings</div>
               {job.openings}

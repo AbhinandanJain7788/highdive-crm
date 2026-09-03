@@ -390,6 +390,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           duplicate_of: string | null
           email: string | null
           id: string
@@ -404,6 +405,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           duplicate_of?: string | null
           email?: string | null
           id?: string
@@ -418,6 +420,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           duplicate_of?: string | null
           email?: string | null
           id?: string
