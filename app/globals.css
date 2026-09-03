@@ -1,0 +1,32 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6d9e0;
+  border-radius: 4px;
+}
+a {
+  color: #ff5c35;
+  text-decoration: none;
+}
+a:hover {
+  color: #e64a25;
+  text-decoration: underline;
+}
+select,
+input,
+button {
+  font-family: inherit;
+}
+button {
+  font: inherit;
+}

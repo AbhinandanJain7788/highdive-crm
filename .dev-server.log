@@ -1,0 +1,99 @@
+
+> highdive-crm@0.1.0 dev
+> next dev --turbopack
+
+   ▲ Next.js 15.5.25 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.29.154:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling middleware ...
+ ✓ Compiled middleware in 1213ms
+ ✓ Ready in 6.3s
+ ○ Compiling /allocations ...
+ ✓ Compiled /allocations in 9.4s
+ GET /allocations 200 in 14068ms
+ ○ Compiling /candidates ...
+ ✓ Compiled /candidates in 759ms
+ GET /candidates 200 in 1070ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 1162ms
+ GET /dashboard 200 in 1457ms
+ ○ Compiling /interactions ...
+ ✓ Compiled /interactions in 699ms
+ GET /interactions 200 in 1460ms
+ GET /allocations 200 in 292ms
+ GET /candidates 200 in 403ms
+ GET /dashboard 200 in 337ms
+ GET /interactions 200 in 986ms
+ GET /allocations 200 in 382ms
+ GET /allocations 200 in 3255ms
+ GET /candidates 200 in 1222ms
+ GET /interactions 200 in 583ms
+ ○ Compiling /calendar ...
+ ✓ Compiled /calendar in 8.6s
+ GET /calendar 200 in 9022ms
+ GET /calendar 200 in 260ms
+ ○ Compiling /follow-ups ...
+ ✓ Compiled /follow-ups in 1133ms
+ GET /follow-ups 200 in 1295ms
+ GET /interactions 200 in 216ms
+ GET /allocations 200 in 326ms
+ GET /candidates 200 in 440ms
+ GET /allocations 200 in 259ms
+ GET /candidates 200 in 518ms
+ GET /interactions 200 in 225ms
+ GET /candidates 200 in 239ms
+ GET /allocations 200 in 211ms
+ GET /interactions 200 in 213ms
+ GET /follow-ups 200 in 599ms
+ GET /calendar 200 in 372ms
+ ○ Compiling /call-logs ...
+ ✓ Compiled /call-logs in 2.2s
+ GET /call-logs 200 in 2420ms
+ GET /call-logs 200 in 244ms
+ ○ Compiling /recurring-follow-ups ...
+ ✓ Compiled /recurring-follow-ups in 876ms
+ GET /recurring-follow-ups 200 in 1034ms
+ ○ Compiling /request-reports ...
+ ✓ Compiled /request-reports in 1632ms
+ GET /request-reports 200 in 1787ms
+ ○ Compiling /rechurn ...
+ ✓ Compiled /rechurn in 1207ms
+ GET /rechurn 200 in 1414ms
+ GET /rechurn 200 in 240ms
+ ○ Compiling /team-live-status ...
+ ✓ Compiled /team-live-status in 954ms
+ GET /team-live-status 200 in 1761ms
+ ✓ Compiled in 5.4s
+ ✓ Compiled in 1180ms
+ ✓ Compiled in 2.8s
+ ✓ Compiled in 301ms
+ ✓ Compiled in 241ms
+ ✓ Compiled in 59ms
+ ✓ Compiled in 68ms
+ ✓ Compiled in 115ms
+ ✓ Compiled in 284ms
+ ✓ Compiled in 86ms
+ ✓ Compiled in 81ms
+ ✓ Compiled in 23ms
+ ✓ Compiled in 67ms
+ ✓ Compiled in 87ms
+ ✓ Compiled in 427ms
+ ✓ Compiled in 274ms
+ ○ Compiling /analytics ...
+ ✓ Compiled /analytics in 9s
+ GET /analytics 200 in 11719ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 3.4s
+ GET /login 200 in 3762ms
+ ○ Compiling /api/auth/login ...
+ ✓ Compiled /api/auth/login in 2.6s
+ POST /api/auth/login 200 in 3873ms
+ GET /dashboard 200 in 2017ms
+ GET /dashboard 200 in 1189ms
+ GET /interactions 200 in 2203ms
+ GET /call-logs 200 in 1322ms
+ GET /follow-ups 200 in 1444ms
+ GET /allocations 200 in 2978ms
