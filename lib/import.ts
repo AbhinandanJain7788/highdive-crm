@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
+import { logActivity } from "@/lib/activityLog";
 
 type UploadType = Database["public"]["Enums"]["upload_type"];
 type ImportDecision = Database["public"]["Enums"]["import_decision"];
@@ -361,6 +362,14 @@ export async function confirmImport(
     .from("import_batches")
     .update({ status: "completed", imported_rows: imported, skipped_rows: skipped })
     .eq("id", batchId);
+
+  await logActivity(supabase, {
+    actorId: confirmedBy,
+    action: "import_confirmed",
+    entityType: "import_batch",
+    entityId: batchId,
+    metadata: { uploadType: batch.upload_type, imported, skipped },
+  });
 
   return { imported, skipped };
 }

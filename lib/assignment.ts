@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { recruiterRoleFilter } from "@/lib/recruiters";
+import { logActivity } from "@/lib/activityLog";
 
 type AssignMethod = Database["public"]["Enums"]["assign_method"];
 
@@ -126,7 +127,7 @@ export async function getWorkload(supabase: SupabaseClient<Database>): Promise<W
 // the caller reports as "skipped", not a crash.
 async function insertAssignment(
   supabase: SupabaseClient<Database>,
-  params: { applicationId: string; recruiterId: string; assignedBy: string; method: AssignMethod }
+  params: { applicationId: string; recruiterId: string; assignedBy: string; method: AssignMethod; logAction?: string }
 ): Promise<{ ok: true } | { ok: false; conflict: boolean; message: string }> {
   const { error } = await supabase.from("assignments").insert({
     application_id: params.applicationId,
@@ -139,6 +140,13 @@ async function insertAssignment(
     // Keep the denormalized column applications.assigned_recruiter_id in sync — it's
     // what the Candidates list reads for "Assigned Recruiter" without a second join.
     await supabase.from("applications").update({ assigned_recruiter_id: params.recruiterId }).eq("id", params.applicationId);
+    await logActivity(supabase, {
+      actorId: params.assignedBy,
+      action: params.logAction ?? "assignment",
+      entityType: "application",
+      entityId: params.applicationId,
+      metadata: { recruiterId: params.recruiterId, method: params.method },
+    });
     return { ok: true };
   }
   const conflict = error.code === "23505";
@@ -275,6 +283,7 @@ export async function reassign(
     recruiterId: params.recruiterId,
     assignedBy: params.assignedBy,
     method: "manual",
+    logAction: "reassignment",
   });
   if (result.ok) return { ok: true };
   return {

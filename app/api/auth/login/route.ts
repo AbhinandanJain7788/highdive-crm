@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, clientKeyFor } from "@/lib/rateLimit";
 
+// Rate limited per (IP + email) at 5 attempts / 60s — Phase 7 Step 4's login-throttle
+// checkpoint. Keyed on the pair rather than IP alone so one shared office IP can't
+// lock every user out from a single attacker targeting one account, and rather than
+// email alone so an attacker can't fan a flood out across many guessed emails from
+// one IP to dodge the limit.
 export async function POST(request: Request) {
   const { email, password } = await request.json();
   if (!email || !password) {
     return NextResponse.json(
       { error: { code: "bad_request", message: "Email and password are required." } },
       { status: 400 }
+    );
+  }
+
+  const rateLimitKey = `${clientKeyFor(request)}:${String(email).toLowerCase()}`;
+  const rate = checkRateLimit(rateLimitKey, 5, 60_000);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: { code: "rate_limited", message: "Too many login attempts. Please try again shortly." } },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(rate.retryAfterMs / 1000)) } }
     );
   }
 

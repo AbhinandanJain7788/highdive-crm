@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
   try {
-    const result = await softDeleteCandidates(supabase, candidateIds);
+    const result = await softDeleteCandidates(supabase, candidateIds, guard.id);
     return NextResponse.json({ data: result });
   } catch (err) {
     const code = (err as { code?: string })?.code;

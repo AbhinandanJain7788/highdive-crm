@@ -4,6 +4,7 @@ import { requirePermission, getCurrentUserProfile } from "@/lib/permissions";
 import { getRechurnMatches, initiateCommonPool, initiateSpecificOwner } from "@/lib/rechurn";
 import { APPLICATION_STATUSES } from "@/lib/candidates.shared";
 import type { RechurnDateBasis, ApplicationStatus } from "@/lib/rechurn.shared";
+import { logActivity } from "@/lib/activityLog";
 
 // POST /api/rechurn/initiate — body: { status?, dateBasis, dateFrom?, dateTo?,
 // mode: "common" | "specific", recruiterId? (required when mode is "specific") }.
@@ -49,6 +50,19 @@ export async function POST(request: Request) {
       mode === "common"
         ? await initiateCommonPool(supabase, matches)
         : await initiateSpecificOwner(supabase, matches, recruiterId, guard.id);
+
+    // One summary row per initiate call (matches data_transfer's pattern) — the
+    // per-application "reassignment" rows initiateSpecificOwner's reassign() calls
+    // already write cover the individual moves; this covers "rechurn initiation"
+    // as its own action type (Phase 7 Step 4).
+    await logActivity(supabase, {
+      actorId: guard.id,
+      action: "rechurn_initiate",
+      entityType: "rechurn_batch",
+      entityId: `${mode}:${Date.now()}`,
+      metadata: { mode, status, dateBasis, dateFrom, dateTo, recruiterId: mode === "specific" ? recruiterId : null, ...result },
+    });
+
     return NextResponse.json({ data: result });
   } catch (err) {
     console.error("POST /api/rechurn/initiate failed", err);

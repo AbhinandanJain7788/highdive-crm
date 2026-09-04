@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { ROLE_SELECT, shapeRole } from "@/lib/roles";
+import { logActivity } from "@/lib/activityLog";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -193,6 +194,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
+  await logActivity(supabase, {
+    actorId: guard.id,
+    action: "role_updated",
+    entityType: "role",
+    entityId: id,
+    metadata: { name, permissionKeys },
+  });
+
   return NextResponse.json({ data: shapeRole(fullRole) });
 }
 
@@ -250,6 +259,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       { status: 500 }
     );
   }
+
+  await logActivity(supabase, { actorId: guard.id, action: "role_deleted", entityType: "role", entityId: id });
 
   return NextResponse.json({ data: { id } });
 }

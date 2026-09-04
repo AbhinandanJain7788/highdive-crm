@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { ROLE_SELECT, shapeRole } from "@/lib/roles";
+import { logActivity } from "@/lib/activityLog";
 
 // GET /api/roles — list all roles with permission keys + user counts.
 // Read is open to any authenticated user (RLS `roles_select`/`permissions_select`/
@@ -156,6 +157,14 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  await logActivity(supabase, {
+    actorId: guard.id,
+    action: "role_created",
+    entityType: "role",
+    entityId: role.id,
+    metadata: { name: name.trim(), permissionKeys },
+  });
 
   return NextResponse.json({ data: shapeRole(fullRole) }, { status: 201 });
 }

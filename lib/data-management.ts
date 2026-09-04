@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { escapeFilterValue, formatDisplayDate, phoneSearchPattern } from "@/lib/format";
 import { reassign, closeActiveAssignment } from "@/lib/assignment";
+import { logActivity } from "@/lib/activityLog";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
@@ -93,7 +94,8 @@ export async function buildCandidateExportCsv(
 // deleted row disappears from those screens immediately while staying in the DB.
 export async function softDeleteCandidates(
   supabase: SupabaseClient<Database>,
-  candidateIds: string[]
+  candidateIds: string[],
+  performedBy: string
 ): Promise<{ deleted: number }> {
   if (candidateIds.length === 0) return { deleted: 0 };
 
@@ -115,6 +117,15 @@ export async function softDeleteCandidates(
     err.code = error.code;
     throw err;
   }
+
+  await logActivity(supabase, {
+    actorId: performedBy,
+    action: "bulk_delete",
+    entityType: "candidate",
+    entityId: candidateIds[0],
+    metadata: { candidateIds, deleted: count ?? 0 },
+  });
+
   return { deleted: count ?? 0 };
 }
 
@@ -146,11 +157,11 @@ export async function transferOwnership(
     else skipped += 1;
   }
 
-  await supabase.from("activity_logs").insert({
-    actor_id: params.performedBy,
+  await logActivity(supabase, {
+    actorId: params.performedBy,
     action: "data_transfer",
-    entity_type: "user",
-    entity_id: params.fromUserId,
+    entityType: "user",
+    entityId: params.fromUserId,
     metadata: { toUserId: params.toUserId, transferred, skipped },
   });
 
