@@ -59,9 +59,9 @@ type RawAssignment = {
 
 const ASSIGNMENT_SELECT = `
   id, recruiter_id, assigned_at,
-  application:applications(
+  application:applications!inner(
     id, status,
-    candidate:candidates(id, name, phone),
+    candidate:candidates!inner(id, name, phone),
     job:jobs(id, title)
   )
 `;
@@ -137,6 +137,7 @@ async function assignmentsByRecruiter(
     .select(ASSIGNMENT_SELECT)
     .eq("status", "active")
     .in("recruiter_id", recruiterIds)
+    .is("application.candidate.deleted_at", null)
     .returns<RawAssignment[]>();
   if (error) throw error;
 

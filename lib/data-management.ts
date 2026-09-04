@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { escapeFilterValue, formatDisplayDate, phoneSearchPattern } from "@/lib/format";
-import { reassign } from "@/lib/assignment";
+import { reassign, closeActiveAssignment } from "@/lib/assignment";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
@@ -96,6 +96,15 @@ export async function softDeleteCandidates(
   candidateIds: string[]
 ): Promise<{ deleted: number }> {
   if (candidateIds.length === 0) return { deleted: 0 };
+
+  // Every list/count that reads `assignments` directly (workload, load-balanced
+  // auto-distribute) has no reason to join candidates — so a deleted candidate's
+  // still-active assignment would otherwise keep inflating their recruiter's count
+  // forever. Closing it here, at the one place a candidate is deleted, fixes that
+  // everywhere at once instead of adding a candidate join to every such query.
+  const { data: apps } = await supabase.from("applications").select("id").in("candidate_id", candidateIds);
+  for (const app of apps ?? []) await closeActiveAssignment(supabase, app.id);
+
   const { error, count } = await supabase
     .from("candidates")
     .update({ deleted_at: new Date().toISOString() }, { count: "exact" })

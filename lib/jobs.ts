@@ -127,12 +127,13 @@ export async function getJobDetail(
        template:pipeline_templates(id, name, stages:pipeline_stages(id, name, sequence_order)),
        applicants:applications(
          id, status, pipeline_stage_id,
-         candidate:candidates(id, name, phone),
+         candidate:candidates!inner(id, name, phone),
          recruiter:users!applications_assigned_recruiter_id_fkey(id, name),
          stage:pipeline_stages(id, name)
        )`
     )
     .eq("id", id)
+    .is("applicants.candidate.deleted_at", null)
     .maybeSingle<RawJobDetail>();
   if (error) throw error;
   if (!data) return null;

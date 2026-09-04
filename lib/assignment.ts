@@ -27,7 +27,7 @@ export type DistributeResult = {
 
 const UNASSIGNED_SELECT = `
   id, candidate_id, job_id,
-  candidate:candidates(id, name, phone),
+  candidate:candidates!inner(id, name, phone),
   job:jobs(id, title)
 `;
 
@@ -47,7 +47,11 @@ export async function getUnassignedApplications(
   supabase: SupabaseClient<Database>,
   applicationIds?: string[]
 ): Promise<UnassignedApplication[]> {
-  let query = supabase.from("applications").select(UNASSIGNED_SELECT).is("assigned_recruiter_id", null);
+  let query = supabase
+    .from("applications")
+    .select(UNASSIGNED_SELECT)
+    .is("assigned_recruiter_id", null)
+    .is("candidate.deleted_at", null);
   if (applicationIds?.length) query = query.in("id", applicationIds);
 
   const { data, error } = await query.order("created_at", { ascending: true }).returns<RawUnassigned[]>();

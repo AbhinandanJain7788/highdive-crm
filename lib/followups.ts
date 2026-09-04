@@ -18,7 +18,7 @@ function followUpSelect(needsInnerApplication: boolean): string {
   return `
     id, application_id, candidate_id, due_at, assigned_by, assign_to, is_recurring,
     recurrence_rule, status, note, created_at, completed_at,
-    candidate:candidates(id, name, phone, created_by),
+    candidate:candidates!inner(id, name, phone, created_by),
     application:applications${needsInnerApplication ? "!inner" : ""}(id, status, job:jobs(id, title))
   `;
 }
@@ -103,7 +103,7 @@ async function resolveSearchCandidateIds(supabase: SupabaseClient<Database>, sea
   const clauses = [`name.ilike.%${term}%`];
   if (term) clauses.push(`phone.ilike.%${term}%`);
   if (phonePattern) clauses.push(`phone.ilike.${phonePattern}`);
-  const { data, error } = await supabase.from("candidates").select("id").or(clauses.join(","));
+  const { data, error } = await supabase.from("candidates").select("id").is("deleted_at", null).or(clauses.join(","));
   if (error) throw error;
   return (data ?? []).map((r) => r.id as string);
 }
@@ -132,7 +132,8 @@ function buildQuery(
   const needsInnerApplication = Boolean(options.statuses?.length);
   let query = supabase
     .from("follow_ups")
-    .select(followUpSelect(needsInnerApplication), countExact ? { count: "exact" } : undefined);
+    .select(followUpSelect(needsInnerApplication), countExact ? { count: "exact" } : undefined)
+    .is("candidate.deleted_at", null);
 
   if (options.candidateId) query = query.eq("candidate_id", options.candidateId);
   if (options.applicationId) query = query.eq("application_id", options.applicationId);
@@ -212,6 +213,7 @@ export async function getFollowUpCalendarEvents(
   const { data, error } = await supabase
     .from("follow_ups")
     .select(FOLLOWUP_SELECT)
+    .is("candidate.deleted_at", null)
     .gte("due_at", monthStartUtc.toISOString())
     .lt("due_at", monthEndUtc.toISOString())
     .order("due_at", { ascending: true })
