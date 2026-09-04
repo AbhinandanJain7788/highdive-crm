@@ -30,3 +30,19 @@ button {
 button {
   font: inherit;
 }
+
+/*
+ * Every clickable tab/chip/filter/toggle in this app is a plain <div> or
+ * <span> with an inline `cursor: pointer` style rather than a native
+ * <button>. Because that text is otherwise ordinary, selectable page
+ * content, clicking it (or caret browsing / a tiny mouse drag on click)
+ * can leave a blinking text-insertion caret sitting inside the label
+ * (e.g. "Last|7 Days"). Matching on the inline style keeps this fix
+ * global across every page without having to touch each component.
+ */
+[style*="cursor:pointer"] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  caret-color: transparent;
+}
