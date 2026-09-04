@@ -16,10 +16,12 @@ theme, not by which batch found it.
 2. **"Customers" vs "Candidates"** — one entity (`candidates` table), two labels. The sidebar
    nav item reads "Customers" (matches the source exactly) and routes to `/candidates`. No
    second route was built. Confirm this is the intended resolution.
-3. **Disposition vocabulary mismatch** — the UI's Connected/Not Connected/Busy/Switched Off
-   (used on Call Logs, callLogsSeed) vs. the live DB's `interested/callback_later/not_reachable`
-   enum (claude.md Open Question 1). Not resolved in Phase 1 — mock data uses the UI's own
-   vocabulary since there's no real `calls` table involved yet. Needs your decision before Phase 5.
+3. ~~**Disposition vocabulary mismatch**~~ — **resolved in Phase 5** per claude.md Open Question 1:
+   Connected/Not Connected is derived from `duration_seconds > 0` and now drives Call Logs' "Select
+   Status" filter (the only Busy/Switched Off values that ever existed were mock placeholders with
+   no real backing state); the live `interested/callback_later/not_reachable` enum is shown
+   separately as the Disposition column on Call Logs' Unattributed tab and on Candidate Detail's
+   real Call History table. The two axes are never merged.
 4. **Multi-job candidates** — the UI shows one job per candidate row. Phase 0 seeded one
    candidate (Ananya Sharma) with two active applications specifically to exercise this later;
    Phase 1's UI doesn't yet have a place to show a second job on the same candidate row.
@@ -54,9 +56,9 @@ theme, not by which batch found it.
    visual pattern. **This tab strip does not exist in the source — it was synthesized to satisfy
    the "must be reachable" requirement.** Flagging for your review; a different placement may be
    preferred.
-10. **Call Logs' "Unattributed" tab has no way back to "All".** The button that switches to
-    Unattributed has no counterpart switching back — ported faithfully (same dead end exists in
-    the source).
+10. ~~**Call Logs' "Unattributed" tab has no way back to "All".**~~ — **fixed in Phase 5** while
+    wiring the screen to live data: the same icon now toggles both directions (and highlights when
+    active), since a genuinely working attribution queue needs a way back to the main log.
 
 ## C. Data/schema gaps surfaced by having a real, structured mock layer
 
@@ -65,11 +67,11 @@ theme, not by which batch found it.
     "Sourced by" is genuinely bound to each candidate's source. There is no second "who created
     this candidate" field anywhere in the data model. Worth confirming this was intentional and
     not a wiring bug that shipped into the signed-off HTML.
-12. **Call attribution doesn't persist which job a call was linked to.** The mock `calls` schema
-    (matching Phase 0's real `calls` table) has no field to record the attributed job on the call
-    row itself once "Link" is clicked in Call Logs' Unattributed tab — only `candidate_id` and an
-    unattributed flag. Cosmetically interactive in Phase 1; needs `application_id` (added for
-    real in Phase 5 per claude.md) before this becomes more than cosmetic.
+12. ~~**Call attribution doesn't persist which job a call was linked to.**~~ — **resolved in
+    Phase 5**: `calls.application_id` was added (additive), a candidate with exactly one active
+    application auto-links on write, and zero-or-many stays null and surfaces in the live
+    Unattributed queue with a real "Link" action (`POST /api/calls/:id/attribute`), verified
+    against Ananya Sharma's two-application seed case.
 13. **Round Robin vs Load Balanced (Assignment screen) run identical logic in the source** — the
     method choice only changes a label, not the actual distribution algorithm. If "Load Balanced"
     should genuinely weight by current recruiter workload, that logic needs to be designed; it
@@ -116,9 +118,13 @@ theme, not by which batch found it.
     Permissions' "Add a Role"/row "⋮" menu, Whatsapp Templates' filters/Create New/Edit/
     Duplicate/Delete, Data Management's Bulk Import "Next" button (step 2 doesn't exist in the
     source at all).
-24. Candidate Detail's "Schedule Follow-up" input/button had zero handlers in the source (purely
-    decorative) — made locally interactive per this phase's explicit task brief, flagged here
-    since it's slightly more functional than the signed-off design.
+24. ~~Candidate Detail's "Schedule Follow-up" input/button had zero handlers in the source (purely
+    decorative) — made locally interactive per this phase's explicit task brief~~ — **wired for
+    real in Phase 5**: it now writes an actual `follow_ups` row (`POST /api/follow-ups` or
+    `/api/follow-ups/recurring`). The freeform text input was swapped for `<input
+    type="datetime-local">` since a working Schedule action needs a real parseable timestamp, not
+    a string a natural-language parser would have to guess at — the one deliberate visual
+    deviation from the signed-off input in this phase.
 25. Settings' password reset had no working handler in the source at all — implemented real
     client-side validation against the 4 stated rules (per this phase's explicit instructions),
     no backend call.

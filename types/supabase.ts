@@ -284,6 +284,7 @@ export type Database = {
       calls: {
         Row: {
           agent_id: string | null
+          application_id: string | null
           b2_url: string | null
           call_record_id: string | null
           call_time: string
@@ -306,6 +307,7 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          application_id?: string | null
           b2_url?: string | null
           call_record_id?: string | null
           call_time?: string
@@ -328,6 +330,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          application_id?: string | null
           b2_url?: string | null
           call_record_id?: string | null
           call_time?: string
@@ -349,6 +352,34 @@ export type Database = {
           topic?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "calls_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calls_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "v_allocations"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "calls_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "v_interactions"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "calls_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "v_rechurn"
+            referencedColumns: ["application_id"]
+          },
           {
             foreignKeyName: "calls_candidate_id_fkey"
             columns: ["candidate_id"]

@@ -31,6 +31,27 @@ export function readPagination(searchParams: URLSearchParams): Pagination {
   return { page, pageSize, from, to: from + pageSize - 1 };
 }
 
+// call_time (and other timestamptz columns shown with a time-of-day) render in IST —
+// claude.md's other date logic (the Calendar/Follow-ups "today" anchor) already
+// assumes India time. Shifting the UTC instant by +5:30 and then reading UTC
+// getters gives IST wall-clock time regardless of the server process's own TZ,
+// the same trick formatDisplayDate uses (via the Z-suffixed Date) to stay
+// timezone-independent.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+export function formatDisplayDateTime(value: string | null): string {
+  if (!value) return "--";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "--";
+  const ist = new Date(d.getTime() + IST_OFFSET_MS);
+  const day = String(ist.getUTCDate()).padStart(2, "0");
+  let hours = ist.getUTCHours();
+  const minutes = String(ist.getUTCMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${String(hours).padStart(2, "0")}:${minutes} ${ampm}, ${day} ${MONTHS[ist.getUTCMonth()]} ${ist.getUTCFullYear()}`;
+}
+
 // Phone numbers are stored with the seed's display spacing ("+91 98201 34567"), so a
 // plain ilike on "9820134567" finds nothing. Postgres can't normalize the column
 // mid-query through PostgREST, so a digits-only search becomes a pattern requiring

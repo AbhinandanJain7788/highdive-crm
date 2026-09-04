@@ -21,6 +21,29 @@ export const dispositionStyles: Record<string, { bg: string; color: string }> = 
   "Switched Off": { bg: "#EEF0F5", color: "#5B6472" },
 };
 
+// Phase 5 / claude.md Open Question 1 (resolved): Connected/Not Connected is derived
+// from `duration_seconds > 0`, kept as its own axis alongside the live
+// `call_disposition` enum's outcome vocabulary (interested/callback_later/
+// not_reachable) — the two are never merged into one badge.
+export const connectionStyles: Record<"connected" | "not_connected", { label: string; bg: string; color: string }> = {
+  connected: { label: "Connected", bg: "#E6F4EA", color: "#1E7F43" },
+  not_connected: { label: "Not Connected", bg: "#FDECEC", color: "#C0392B" },
+};
+
+export const callDispositionStyles: Record<
+  "interested" | "callback_later" | "not_reachable",
+  { label: string; bg: string; color: string }
+> = {
+  interested: { label: "Interested", bg: "#E6F4EA", color: "#1E7F43" },
+  callback_later: { label: "Callback Later", bg: "#FFF4E5", color: "#B15C00" },
+  not_reachable: { label: "Not Reachable", bg: "#EEF0F5", color: "#5B6472" },
+};
+
+export const callDirectionLabels: Record<"outbound" | "inbound", string> = {
+  outbound: "Outgoing",
+  inbound: "Incoming",
+};
+
 export const liveStatusColors: Record<string, string> = {
   idle: "#D97706",
   on_call: "#16A34A",

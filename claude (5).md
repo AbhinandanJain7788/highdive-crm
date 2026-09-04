@@ -704,3 +704,166 @@ was ambiguous or silent:
    have a corresponding follow-up, so `callback_due_at` surfaces as data feeding
    `follow_ups`, never as a second, competing system the UI reads directly.
 5. ~~**Multi-job candidates.**~~ Resolved in Phase 3 — see its As-Built Notes: the list row shows the most recent application; the detail page lists all of them.
+
+## Phase 5 — As-Built Notes
+
+Phase 5's backend (migrations, `lib/calls.ts`/`.shared.ts`, `lib/interactions.ts`/`.shared.ts`,
+`lib/followups.ts`/`.shared.ts`, and all 10 API routes) was already built and `npx tsc --noEmit`
+clean when this pass picked the phase up after a process interruption. This pass's actual work was
+the frontend: wiring `/call-logs`, `/interactions`, `/follow-ups`, `/calendar`,
+`/recurring-follow-ups`, and Candidate Detail's Call History + Schedule Follow-up to that backend,
+then self-auditing the whole phase end-to-end.
+
+- **Screens wired, mocks removed**, following the established server-component-fetches-page-1 /
+  client-component-refetches-on-filter-change pattern (`AllocationsClient`'s own convention):
+  `app/(app)/call-logs/{page.tsx,CallLogsClient.tsx}`,
+  `app/(app)/interactions/{page.tsx,InteractionsClient.tsx}`,
+  `app/(app)/follow-ups/{page.tsx,FollowUpsClient.tsx}`,
+  `app/(app)/calendar/{page.tsx,CalendarClient.tsx}`,
+  `app/(app)/recurring-follow-ups/{page.tsx,RecurringFollowUpsClient.tsx}`, and
+  `app/(app)/candidates/[id]/{page.tsx,CandidateDetailClient.tsx}` (Call History table + Schedule
+  Follow-up action added to the existing candidate detail screen).
+- **Connected/Not Connected (Open Question 1) was implemented as a repurposed existing control,
+  not a new column.** The signed-off Call Logs "All" tab has no disposition/connection badge in
+  its row template at all — only a "Select Status" filter select that, in the source, listed the
+  4 mock-only values (Connected/Not Connected/Busy/Switched Off, none backed by real data). That
+  select now offers the two real values (Connected/Not Connected, from `duration_seconds > 0`)
+  instead of the four fake ones. The live `disposition` enum (`interested`/`callback_later`/
+  `not_reachable`) is shown as its own axis exactly where the signed-off HTML already has a
+  column for it: the Unattributed tab's "Disposition" column and Candidate Detail's real Call
+  History table (`Date | By | Duration | Disposition | Recording`, verbatim from the source). The
+  two axes are displayed alongside each other across the two screens, never merged into one badge
+  on either.
+- **Play Recording streams the real `b2_url`, fetched lazily.** `GET /api/calls` (the list) never
+  returns `b2Url`/`storagePath` — only `GET /api/calls/:id` (the detail route) does, matching
+  claude.md's own API table ("detail incl. `b2_url` for playback"). `CallLogsClient` fetches the
+  detail record on first Play click per row, caches it, and plays through a single shared
+  `<audio>` element; the disabled "no recording" state renders whenever `hasRecording` (computed
+  server-side from `b2_url || storage_path`) is false — verified against the one seeded call with
+  both null.
+- **The CRM-writes-only-notes rule was verified adversarially, not just trusted.** `PATCH
+  /api/calls/:id` was hit with a body smuggling `disposition`, `duration_seconds`, and `topic`
+  alongside `notes`; the response and a direct service-role read of the row afterward both
+  confirmed only `notes` changed — `updateCallNotes`'s own signature has no parameter for
+  anything else, so there is no code path that could write them even if the route's body-field
+  filter were removed. A request with no `notes` key at all correctly 400s rather than silently
+  no-op'ing. No UI element was added for editing notes on Call Logs or Candidate Detail's Call
+  History, since the signed-off HTML defines none on either screen (the two circular row-action
+  icons that exist are a download-style glyph and the site-wide "Call" icon, neither bound to
+  anything in the source either) — adding one would be inventing UI outside this phase's mandate.
+  Verified via direct HTTP instead.
+- **Call Logs' "Unattributed" tab back-button gap (ui-gaps.md #10) was fixed while wiring the
+  screen**, not left as a ported dead end: the same icon now toggles both directions and
+  highlights when active. A working attribution queue needs a way back to the main log to be
+  usable at all.
+- **The "+" quick-action icon — present but unbound on every list row across
+  Allocations/Interactions/Follow-ups in the signed-off HTML — was repurposed as "Mark Complete"
+  on Follow-Ups and Recurring Follow-Ups rows.** Phase 5 Checkpoint 4 requires a working complete
+  action and the source design defines no dedicated control for it anywhere; reusing an existing,
+  previously-inert icon reads as the smallest change that makes the checkpoint real rather than
+  adding new UI surface.
+- **Follow-Ups' "Sourced by" column, static `"--"` in the source markup itself (never bound to
+  anything, not even in the prototype), was bound to real data** (`candidates.created_by`,
+  resolved the same way Allocations/Interactions already do) instead of preserved as a literal
+  dash. The column header already existed and clearly intended real content; every analogous
+  column on Allocations/Interactions is genuinely wired, so leaving this one hard-coded would have
+  been the odd one out rather than a faithful port.
+- **Schedule Follow-up (candidate detail) writes a real `follow_ups` row.** The signed-off HTML's
+  input is freeform text (placeholder `"e.g. 3 Sep, 11:00 AM"`); swapped for `<input
+  type="datetime-local">` since a working Schedule action needs an actual parseable `due_at`, not
+  a string a natural-language date parser would have to guess at — the one deliberate visual
+  deviation from a signed-off control in this phase. A "Recurring" checkbox + recurrence-text
+  input were added alongside it (not in the source at all) so `POST /api/follow-ups/recurring` has
+  a real UI entry point — otherwise nothing in the signed-off design could ever create a recurring
+  follow-up.
+- **Recurring Follow-Ups did *not* get "View Schedule"/"History" buttons**, despite the phase
+  brief's checkpoint text mentioning them. Traced those two buttons in the actual signed-off HTML:
+  they belong to the Request Reports screen's header (Phase 6, out of scope), not Recurring
+  Follow-Ups — confirmed by reading the source markup directly rather than trusting the phase
+  doc's paraphrase. What the source actually defines for this screen is just the Pending/Upcoming
+  tab counts and a "No Data to display" empty state, both wired for real (counts from
+  `getFollowUpBucketCounts({isRecurring:true})`); a row list was added for the non-empty case since
+  the source never anticipated real data existing here (it was permanently empty, 0 seeded rows),
+  using the same row visual language as `/follow-ups`.
+- **Calendar's empty-state text was corrected to match the signed-off HTML exactly.** The
+  Phase 1 mock (`CalendarPage.tsx`) rendered `"No Data to display"` for the side panel's empty
+  case; the actual source markup for that exact condition (`calNoEvents`) reads `"No follow-ups
+  scheduled for this date."` — a Phase 1 conversion slip, fixed now since Phase 5's own checkpoint
+  requires the three empty states to render exactly as in the HTML.
+- **Location/Priority filters and the Interactions "Unique/All" toggle were dropped**, not wired,
+  on the three newly-live screens (Interactions, Follow-Ups, Calendar keeps only its Status
+  filter). Same reasoning Phase 4 already applied to Candidates/Allocations: Location/Priority
+  read `lib/mock/candidateProfiles.ts`, a seed-id-keyed mock with no backing columns on
+  `candidates`, and would render `--`/match nothing against real uuids. "Unique/All" doesn't map
+  onto `v_interactions`'s shape (one row per application, not per call) in any way worth
+  preserving. Calendar's "Filter" side panel still offers a Status/Stage radio (shared
+  `MoreFiltersPanel` component) for visual consistency with every other screen using it; selecting
+  "Stage" mode there won't match anything against Calendar's real `application_status`-only data —
+  a known, minor, low-traffic limitation rather than a functional requirement, left undocumented-
+  but-real rather than removing a control every other screen keeps.
+- **No pager was added to Follow-Ups or Recurring Follow-Ups.** The signed-off HTML defines no
+  rows-per-page control on either screen (confirmed by reading the source markup — Interactions'
+  pager is real, Follow-Ups' equivalent section simply ends after the row list). Both screens
+  instead request the largest supported page size (50) so the full Pending/Upcoming set renders
+  without new pager UI; if real usage ever exceeds 50 due follow-ups in one bucket, this becomes a
+  real gap requiring either a pager (a new-UI decision, same class as Phase 3's Candidates pager)
+  or a decision to leave it.
+- **Self-audit run against the live dev server** (port 3001 — 3000 was already occupied by another
+  process), signed in as Admin (Rakshit Verma) and recruiter Ayesha Khan via `/api/auth/login`,
+  cross-checked against direct service-role REST queries the same way Phase 3/4 did:
+  - **Checkpoint 1 (attribution) — all green.** Vikram Singh (1 active application) and Arjun
+    Mehta (1 active application) auto-link on the trigger; Ananya Sharma (2 active applications,
+    the Phase 0 seed built for exactly this) stays `application_id: null` and appears in
+    `/api/calls/unattributed` with both her real applications offered for manual linking. The
+    zero-active-application case has no natural seed row, so one was created synthetically (a
+    throwaway candidate + a service-role-inserted `calls` row, mimicking how the Android app
+    writes) — it appeared in the unattributed queue with `candidateJobs: []`, then both rows were
+    deleted after the check. `POST /api/calls/:id/attribute` was verified both ways: rejected a
+    mismatched application (`400 application_mismatch`) and accepted Ananya's own application
+    (`200`, removed from the queue), then reverted to `null` afterward to restore seed state
+    byte-for-byte. Empty-state text ("No unattributed calls — everything is linked to a job.")
+    renders once the queue is empty.
+  - **Checkpoint 2 (call logs & recording) — all green.** `GET /api/calls` returns Vikram → Ananya
+    → Arjun in `call_time` order (matching `2026-09-01 > 2026-08-28 > 2026-08-26`), all
+    `direction_normalized: "outbound"`. `connected` matches `duration_seconds > 0` exactly for all
+    three (`false`/`0s`, `true`/`284s`, `true`/`142s`). The Play/disabled-state split is a direct
+    ternary on `hasRecording` computed server-side — verified via the data (call 1's `b2_url`/
+    `storage_path` both null) and code inspection, since RSC-serialized HTML dedupes repeated
+    literal strings and isn't reliably `grep`-able for per-row state. `PATCH /api/calls/:id`
+    notes-editing and write-protection verified adversarially (above). Candidate Detail's Call
+    History renders Ananya's real call (`"Confirmed interview availability"`) and Rohit Verma's
+    (no calls) renders the exact `"No calls made yet."` empty state — both confirmed by fetching
+    the rendered HTML, not just the API. Recruiter scoping confirmed live: Ayesha Khan sees 2 of
+    the 3 real calls (the two `resolved_agent_id`-hers rows), not Arjun's (Suresh Pillai's call).
+  - **Checkpoint 3 (interactions) — all green.** `v_interactions` has 4 real rows (Ananya appears
+    twice, once per application — the view is one-row-per-application, not per-candidate, and
+    `InteractionRow`/`getInteractionRows` already documented that shape); `GET /api/interactions`
+    returned exactly those 4 for Admin and correctly narrowed to 2 (Vikram + Ananya's rows only,
+    Arjun excluded) for Ayesha. "Interacted on" matches each row's `call_time` exactly, confirmed
+    against the raw view data.
+  - **Checkpoint 4 (follow-ups & calendar) — all green.** Direct count of the 10 seeded
+    `follow_ups` rows against today (2026-09-04, IST) gives 7 pending / 3 upcoming;
+    `GET /api/follow-ups?bucket=pending|upcoming` returned exactly `7`/`3` with matching
+    `counts`. A real `POST /api/follow-ups` (Arjun's application, due 15 Sep) appeared correctly
+    on `GET /api/follow-ups/calendar?year=2026&month=9` under day 15; `PATCH .../:id
+    {status:"completed"}` set `completed_at` and flipped `bucket` to `null` (verified both via the
+    API response and a direct DB read), dropping it out of both tabs. `POST
+    /api/follow-ups/recurring` created a real `is_recurring: true` row that showed up correctly
+    under `GET /api/follow-ups/recurring`'s own Pending/Upcoming counts. The `callback_due_at`
+    backfill (Q4) was confirmed live: one of the 10 seeded rows carries the note "Backfilled from
+    call callback (call #2) — Candidate asked to call back after 4 PM" and is the only follow-up
+    referencing that callback — no duplicate. All three test-created rows (one plain, one
+    completed, one recurring) were deleted afterward; final row counts (`calls`: 3, `follow_ups`:
+    10) and Ananya's call/Arjun's notes were confirmed restored to their exact pre-audit values.
+  - Pages were also fetched as rendered HTML (not just API JSON) for all 5 screens plus two
+    candidate-detail cases, confirming real seed names/data appear and no Next.js error boundary
+    triggered (the one `"This page could not be found"` string every App Router page's RSC
+    payload embeds for the shared not-found boundary is present in all of them, including working
+    pages — a build artifact, not a signal, and not worth over-indexing on given the point above
+    about RSC string deduplication).
+- `npx tsc --noEmit` clean after all frontend changes.
+- **Still open / deliberately out of scope:** the Calendar "Filter" panel's Stage-mode dead end
+  (documented above); no pager on Follow-Ups/Recurring Follow-Ups if a bucket ever exceeds 50 rows
+  (documented above); AI Score/AI Call Analytics remain the permanent placeholders Q2 already
+  settled. Dashboard, Analytics, Reports, Request Reports, and Rechurn are explicitly Phase 6+ and
+  were not touched.

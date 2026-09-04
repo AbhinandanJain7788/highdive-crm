@@ -3,16 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { statusStyles, avatarColorFor, avatarLetterFor, type ApplicationStatus } from "@/lib/mock";
+import { callDispositionStyles, fmtDuration } from "@/lib/mock/styles";
 import type { CandidateDetail } from "@/lib/candidates.shared";
+import type { CallRow } from "@/lib/calls.shared";
 
 const statusKeys = Object.keys(statusStyles) as ApplicationStatus[];
 
 export default function CandidateDetailClient({
   candidate,
   canEdit,
+  calls,
 }: {
   candidate: CandidateDetail;
   canEdit: boolean;
+  calls: CallRow[];
 }) {
   const router = useRouter();
 
@@ -27,6 +31,54 @@ export default function CandidateDetailClient({
   const [savedNotes, setSavedNotes] = useState(candidate.notes);
   const [saving, setSaving] = useState<"status" | "notes" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Schedule Follow-up — writes a real `follow_ups` row against the candidate's
+  // primary application (Phase 5). The signed-off HTML's freeform text input
+  // ("e.g. 3 Sep, 11:00 AM") is swapped for a real datetime-local input since a
+  // working Schedule action needs an actual parseable due_at, not a string a
+  // natural-language date parser would have to guess at.
+  const [dueAt, setDueAt] = useState("");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceRule, setRecurrenceRule] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  async function scheduleFollowUp() {
+    if (!primary || !dueAt) return;
+    const dueAtMs = new Date(dueAt).getTime();
+    if (Number.isNaN(dueAtMs)) {
+      setScheduleError("Pick a valid date and time.");
+      return;
+    }
+    setScheduling(true);
+    setScheduleError(null);
+    setScheduleNotice(null);
+    try {
+      const endpoint = isRecurring ? "/api/follow-ups/recurring" : "/api/follow-ups";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          applicationId: primary.id,
+          dueAt: new Date(dueAtMs).toISOString(),
+          ...(isRecurring ? { recurrenceRule: recurrenceRule || "Weekly" } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not schedule the follow-up.");
+      }
+      setScheduleNotice("Follow-up scheduled.");
+      setDueAt("");
+      setIsRecurring(false);
+      setRecurrenceRule("");
+    } catch (err) {
+      setScheduleError(err instanceof Error ? err.message : "Could not schedule the follow-up.");
+    } finally {
+      setScheduling(false);
+    }
+  }
 
   async function saveStatus(next: ApplicationStatus) {
     if (!primary) return;
@@ -290,50 +342,97 @@ export default function CandidateDetailClient({
 
         <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Call History</div>
-          {/* TODO(phase-5): call rows come from the `calls` table, written by the
-              Android app. An explicit empty state, not mock rows that would read as
-              this candidate's real call history. */}
-          <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>
-            Call history is wired in Phase 5.
-          </div>
+          {calls.length > 0 ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1.2fr 1.4fr", gap: 10, padding: "8px 10px", fontSize: 11.5, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", borderBottom: "1px solid #EEF0F4" }}>
+                <div>Date</div>
+                <div>By</div>
+                <div>Duration</div>
+                <div>Disposition</div>
+                <div>Recording</div>
+              </div>
+              {calls.map((call) => {
+                const dispStyle = call.disposition ? callDispositionStyles[call.disposition] : null;
+                return (
+                  <div key={call.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1.2fr 1.4fr", gap: 10, alignItems: "center", padding: "10px 10px", borderBottom: "1px solid #F4F5F8" }}>
+                    <div style={{ fontSize: 12.5, color: "#4B5565" }}>{call.calledAt}</div>
+                    <div style={{ fontSize: 12.5, color: "#4B5565" }}>{call.byUserName ?? "--"}</div>
+                    <div style={{ fontSize: 12.5, color: "#1D2433" }}>{fmtDuration(call.durationSeconds)}</div>
+                    <div>
+                      {dispStyle ? (
+                        <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 8px", borderRadius: 20, background: dispStyle.bg, color: dispStyle.color }}>
+                          {dispStyle.label}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "#9AA1AC" }}>--</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: call.hasRecording ? "#1E7F43" : "#9AA1AC" }}>
+                      {call.hasRecording ? "Available" : "Not Available"}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>No calls made yet.</div>
+          )}
 
           <div style={{ marginTop: 16, borderTop: "1px solid #EEF0F4", paddingTop: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", marginBottom: 8 }}>
               Schedule Follow-up
             </div>
-            {/* TODO(phase-5): writes a `follow_ups` row. Disabled rather than
-                accepting input it would throw away. */}
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
               <input
-                type="text"
-                disabled
-                placeholder="Follow-ups are wired in Phase 5"
+                type="datetime-local"
+                value={dueAt}
+                disabled={!primary || !canEdit}
+                onChange={(e) => setDueAt(e.target.value)}
+                title={primary ? undefined : "This candidate has no application to schedule a follow-up against."}
                 style={{
                   flex: 1,
                   padding: "9px 12px",
-                  border: "1px solid #E7E9EE",
+                  border: "1px solid #D9DCE3",
                   borderRadius: 6,
                   fontSize: 13,
-                  background: "#F7F8FA",
-                  color: "#9AA1AC",
+                  background: !primary || !canEdit ? "#F7F8FA" : "#FFFFFF",
+                  color: !primary || !canEdit ? "#9AA1AC" : "#1D2433",
                 }}
               />
               <button
-                disabled
+                onClick={scheduleFollowUp}
+                disabled={!primary || !canEdit || !dueAt || scheduling}
                 style={{
-                  background: "#F7F8FA",
-                  border: "1px solid #E7E9EE",
-                  color: "#9AA1AC",
+                  background: !primary || !canEdit || !dueAt ? "#F7F8FA" : "#FF5C35",
+                  border: !primary || !canEdit || !dueAt ? "1px solid #E7E9EE" : "none",
+                  color: !primary || !canEdit || !dueAt ? "#9AA1AC" : "#FFFFFF",
                   borderRadius: 6,
                   padding: "9px 16px",
                   fontSize: 13,
                   fontWeight: 600,
-                  cursor: "default",
+                  cursor: !primary || !canEdit || !dueAt || scheduling ? "default" : "pointer",
                 }}
               >
-                Schedule
+                {scheduling ? "Scheduling…" : "Schedule"}
               </button>
             </div>
+            {primary && canEdit && (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#4B5565", marginBottom: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
+                Recurring
+                {isRecurring && (
+                  <input
+                    type="text"
+                    value={recurrenceRule}
+                    onChange={(e) => setRecurrenceRule(e.target.value)}
+                    placeholder="e.g. Weekly"
+                    style={{ marginLeft: 6, padding: "5px 8px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, width: 120 }}
+                  />
+                )}
+              </label>
+            )}
+            {scheduleNotice && <div style={{ fontSize: 12.5, color: "#1E7F43" }}>{scheduleNotice}</div>}
+            {scheduleError && <div style={{ fontSize: 12.5, color: "#B42318" }}>{scheduleError}</div>}
           </div>
         </div>
       </div>
