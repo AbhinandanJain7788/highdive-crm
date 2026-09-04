@@ -1,26 +1,27 @@
-// TODO(phase-6): this whole page — Pipeline Funnel, Call Outcomes, and Calls by
-// Recruiter — is still mock data, including computeStageCounts' hardcoded stage
-// names. Phase 6 (Dashboard & Analytics) wires it to real applications/calls and
-// should read pipeline stage names from pipeline_stages, not lib/mock/pipeline.ts.
-import { callLogsSeed, candidatesSeed, computeStageCounts, dispositionStyles, fmtDuration, recruiters } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/permissions";
+import { getReportsData } from "@/lib/reports";
+import { fmtDuration } from "@/lib/mock";
 
-const dispositions: Array<keyof typeof dispositionStyles> = ["Connected", "Not Connected", "Busy", "Switched Off"];
+// Server component, no client-side interactivity needed — matches the signed-off
+// HTML, which has no filters/tabs on this screen at all. Gated on `view_all_records`
+// (claude.md's API table marks GET /api/reports "manager+"; same reasoning as
+// /recruiters — Phase 3 As-Built Notes) rather than a dedicated permission key, since
+// none exists for Reports specifically.
+export default async function ReportsPage() {
+  const profile = await getCurrentUserProfile();
+  if (!profile?.permissions.includes("view_all_records")) {
+    return (
+      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 40, textAlign: "center", color: "#6B7280", fontSize: 13.5 }}>
+        Reports are only available to users who can view all records.
+      </div>
+    );
+  }
 
-export default function ReportsPage() {
-  const stageCounts = computeStageCounts(candidatesSeed);
-
-  const callVolumeByDisposition = dispositions.map((d) => {
-    const count = callLogsSeed.filter((l) => l.disposition === d).length;
-    const pct = `${Math.max(2, Math.round((count / callLogsSeed.length) * 100))}%`;
-    return { label: d, count, pct, color: dispositionStyles[d].color };
-  });
-
-  const callsByRecruiter = recruiters.map((r) => {
-    const rCalls = callLogsSeed.filter((l) => l.byUserId === r.id);
-    const connected = rCalls.filter((l) => l.disposition === "Connected").length;
-    const avg = rCalls.length ? Math.round(rCalls.reduce((a, l) => a + l.durationSeconds, 0) / rCalls.length) : 0;
-    return { name: r.name, total: rCalls.length, connected, avgDurationLabel: fmtDuration(avg) };
-  });
+  const supabase = await createClient();
+  const data = await getReportsData(supabase);
+  const funnelMax = Math.max(1, ...data.pipelineFunnel.map((s) => s.count));
+  const outcomesMax = Math.max(1, ...data.callOutcomes.map((d) => d.count));
 
   return (
     <div>
@@ -28,35 +29,42 @@ export default function ReportsPage() {
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
         <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Pipeline Funnel</div>
-          {stageCounts.map((stage) => (
-            <div key={stage.stage} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 130, fontSize: 12.5, color: "#4B5565", flexShrink: 0 }}>{stage.stage}</div>
+          {data.pipelineFunnel.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No pipeline data.</div>}
+          {data.pipelineFunnel.map((stage) => (
+            <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <div style={{ width: 130, fontSize: 12.5, color: "#4B5565", flexShrink: 0 }}>{stage.name}</div>
               <div style={{ flex: 1, height: 8, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "#FF5C35", borderRadius: 4, width: stage.pct }} />
+                <div style={{ height: "100%", background: "#FF5C35", borderRadius: 4, width: `${Math.max(stage.count > 0 ? 4 : 0, Math.round((stage.count / funnelMax) * 100))}%` }} />
               </div>
-              <div style={{ width: 28, textAlign: "right", fontSize: 12.5, fontWeight: 600, color: "#1D2433" }}>
-                {stage.count}
-              </div>
+              <div style={{ width: 28, textAlign: "right", fontSize: 12.5, fontWeight: 600, color: "#1D2433" }}>{stage.count}</div>
             </div>
           ))}
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Call Outcomes</div>
-          {callVolumeByDisposition.map((d) => (
-            <div key={d.label} style={{ marginBottom: 12 }}>
+          {data.callOutcomes.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No calls yet.</div>}
+          {data.callOutcomes.map((d) => (
+            <div key={d.key} style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "#1D2433", marginBottom: 5 }}>
                 <span>{d.label}</span>
                 <span style={{ fontWeight: 600 }}>{d.count}</span>
               </div>
               <div style={{ height: 7, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: d.color, borderRadius: 4, width: d.pct }} />
+                <div style={{ height: "100%", background: "#3D9DA8", borderRadius: 4, width: `${Math.max(d.count > 0 ? 2 : 0, Math.round((d.count / outcomesMax) * 100))}%` }} />
               </div>
             </div>
           ))}
+          <div style={{ fontSize: 11, color: "#9AA1AC", marginTop: 10 }}>
+            {data.unattributedCallCount} call{data.unattributedCallCount === 1 ? "" : "s"} not yet linked to a job (see Call Logs
+            &rsquo;s Unattributed tab) — included above, since disposition doesn&rsquo;t depend on job attribution.
+          </div>
         </div>
       </div>
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 18 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Calls by Recruiter</div>
+        <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 10 }}>
+          Avg Duration is computed over connected calls only (duration &gt; 0) — a not-connected call has no talk time to average in.
+        </div>
         <div
           style={{
             display: "grid",
@@ -75,9 +83,9 @@ export default function ReportsPage() {
           <div>Connected</div>
           <div>Avg Duration</div>
         </div>
-        {callsByRecruiter.map((r) => (
+        {data.callsByRecruiter.map((r) => (
           <div
-            key={r.name}
+            key={r.recruiterId}
             style={{
               display: "grid",
               gridTemplateColumns: "2fr 1fr 1fr 1fr",
@@ -90,9 +98,10 @@ export default function ReportsPage() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>{r.name}</div>
             <div style={{ fontSize: 13, color: "#1D2433" }}>{r.total}</div>
             <div style={{ fontSize: 13, color: "#1E7F43" }}>{r.connected}</div>
-            <div style={{ fontSize: 13, color: "#4B5565" }}>{r.avgDurationLabel}</div>
+            <div style={{ fontSize: 13, color: "#4B5565" }}>{fmtDuration(r.avgDurationSeconds)}</div>
           </div>
         ))}
+        {data.callsByRecruiter.length === 0 && <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "24px 0" }}>No recruiters found.</div>}
       </div>
     </div>
   );

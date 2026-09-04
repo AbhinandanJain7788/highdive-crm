@@ -867,3 +867,220 @@ then self-auditing the whole phase end-to-end.
   (documented above); AI Score/AI Call Analytics remain the permanent placeholders Q2 already
   settled. Dashboard, Analytics, Reports, Request Reports, and Rechurn are explicitly Phase 6+ and
   were not touched.
+
+## Phase 6 — As-Built Notes
+
+Wired Dashboard, Analytics, Reports, Request Reports, and Rechurn to live data end to end:
+`lib/dateRanges.ts`, `lib/pipeline.ts`, `lib/dashboard.{ts,shared.ts}`, `lib/analytics.{ts,shared.ts}`,
+`lib/reports.{ts,shared.ts}`, `lib/reportRequests.{ts,shared.ts}`, `lib/rechurn.{ts,shared.ts}`, the
+9 new API routes (`/api/dashboard`, `/api/analytics/{overall,login,top-users}`, `/api/reports`,
+`/api/report-requests`, `/api/rechurn/{count,initiate}`), and the 5 screens
+(`app/(app)/{dashboard,analytics,reports,request-reports,rechurn}`). No DB access was available
+this session beyond the service-role REST fallback (see below), so no migrations were needed or
+attempted — `report_requests`, `pipeline_stages`/`pipeline_templates`, and `v_rechurn` already
+existed exactly as claude.md's schema describes.
+
+- **DB access this session: MCP unavailable, REST fallback used throughout.** `ToolSearch` found
+  zero `mcp__*Supabase*` tools at any point in this session — unlike the pass that finished Phase
+  5, which had it reconnected. Every live cross-check in this phase's self-audit (below) and the
+  synchronous report-generation fallback both used direct PostgREST calls with the service-role
+  key from `.env.local`, the same fallback Phase 5's second pass used successfully.
+
+- **Date ranges are IST calendar days, computed once in `lib/dateRanges.ts`** and shared by
+  Dashboard and Analytics rather than each screen inventing its own math. "Last 7 Days"/"Last 30
+  Days" are inclusive windows ending **today** (today + 6/29 preceding days) — a decision call,
+  since neither claude.md nor the phase spec pins down inclusivity either way. Call Trends/Talk
+  Time charts bucket **hourly within Today, daily across Last 7/30 Days** (`buildChartBuckets`);
+  Analytics never offered a Y'day tab in the signed-off HTML, so `AnalyticsRangeKey` is a
+  deliberately smaller set than `DashboardRangeKey`.
+
+- **Recruiter scoping is enforced explicitly, not left to RLS alone.** RLS already restricts a
+  recruiter's reads to rows tied to an assignment they hold or held (claude.md's own rule), but
+  that's a *superset* — e.g. `calls` RLS admits any call on a candidate the recruiter is assigned
+  to, even one another agent placed. claude.md Phase 6's "Recruiters see only their own numbers" is
+  read literally: every call metric additionally filters `resolved_agent_id = self`, and every
+  candidate/application metric filters `assigned_recruiter_id = self` (`lib/pipeline.ts`'s
+  `recruiterId` option), whenever the caller lacks `view_all_records`. This produced a genuine,
+  subtle, live-verified result during the audit: candidate `06c49fe7` (2 applications, one
+  assigned to Ayesha Khan, a newer one assigned to Rohan Deshmukh) shows up in **Ayesha's**
+  Dashboard/Analytics using *her own* application's status (`interview_scheduled`), not the
+  candidate's overall newest application (`contacted`, Rohan's) — each recruiter's view reflects
+  their own caseload on a shared candidate, never a colleague's.
+  Open Actions is the one exception: unassigned/pending-follow-up counts are **not** date-range
+  scoped (they mirror Allocations' "New" bucket and Follow-Ups' "Pending" bucket exactly, as the
+  checkpoint requires, and those screens show the current backlog regardless of date tab); Missed
+  Calls **is** range-scoped (it's `Not Connected` calls within the selected window, matching what
+  Call Logs would show with the same range + Not Connected filter applied). Reports itself has no
+  date range at all, matching the signed-off HTML — it's an unscoped, org-wide audit screen, gated
+  on `view_all_records` (claude.md's API table marks it "manager+"; no dedicated permission key
+  exists for it, so this reuses the established manager-bypass marker from `/api/recruiters` and
+  `/api/data/transfer`, Phase 3/4's own precedent).
+
+- **"Personal" call bucket stays permanently 0.** No schema axis distinguishes a personal call from
+  a work call (`direction_normalized` is only outbound/inbound; `disposition` carries no such
+  concept either) — same as the signed-off HTML, which never derives it from data either.
+
+- **Conversion Funnel (Analytics) and Pipeline Funnel (Reports) share one function**
+  (`lib/pipeline.ts`'s `getDefaultPipelineFunnel`) reading real `pipeline_stages` off the org's
+  `pipeline_templates` row where `is_default = true` — never a hardcoded stage list, satisfying the
+  checkpoint. Two pipeline templates exist (Phase 3): this funnel only covers applications on jobs
+  using the **default** template, so the 3 jobs on "Bulk Hiring Pipeline" aren't counted in it —
+  same documented, pre-existing limitation as ui-gaps.md item 15 ("Offered" can never have
+  candidates), not a new gap. Live-verified both ways: "Offered" genuinely returns `count: 0`;
+  "New" returns `count: 3`, matching exactly the 3 seeded applications whose `pipeline_stage_id`
+  is that stage's id (the other 2 "new"-status applications use a Bulk Hiring stage id and are
+  correctly excluded).
+
+- **Customer Stages (Analytics) and the Dashboard's Candidates panel share one computation too**
+  (`lib/pipeline.ts`'s `getCandidateStageSnapshot`), so the two screens can never disagree about
+  the same range/scope. It reuses the existing "one row per candidate, carrying the most recent
+  application" rule (Phase 3 Open Question 5) rather than inventing a second counting rule — with
+  the caveat that "most recent" is evaluated *within* the recruiter's own filtered application set
+  when scoped (see above), not the candidate's global newest.
+
+- **Login Analytics: real login/logout instrumentation added, one genuine limitation left as
+  `--`.** `POST /api/auth/login` and `/api/auth/logout` (`app/api/auth/{login,logout}/route.ts`)
+  now each write a best-effort `activity_logs` row (`action: "login"`/`"logout"`, wrapped in
+  try/catch so a logging failure can never block sign-in/out) — added specifically to back this
+  widget, since nothing else in the schema records session history. "Login Duration" pairs
+  consecutive login/logout events within the selected range and sums the elapsed time (an
+  unmatched open login counts up to the range's own upper bound, not "now", so a fixed range's
+  answer doesn't grow on repeated polls) — always the **current user's own** duration regardless of
+  role, since the source HTML renders it as one personal value, not an org list.
+  **Real bug found and fixed during the self-audit**: reading `activity_logs` through the
+  request-scoped client returned zero rows for every user, including reading one's own rows —
+  `activity_logs`' RLS is insert-own/**admin-only read** (Phase 2 As-Built Notes), which blocks a
+  non-admin from reading even their own login history. Fixed by reading through
+  `createAdminClient()` in `getLoginAnalytics`, with the query **always** hard-filtered to
+  `actor_id = profile.id` before it runs — bypassing RLS here can only ever unblock a user reading
+  their own rows, never expose anyone else's. Verified live: logging in and out via curl produced
+  a real `loginDurationLabel: "1m"` on the next `GET /api/analytics/login` call. "Wrap up
+  Time"/"Break Time"/"Idle Time" stay a genuine `--` — nothing in this schema logs a *history* of
+  `live_status` transitions (`users.live_status`/`live_status_since` holds only the current state),
+  so there's no real duration to compute for them. Same "honest placeholder, not a fabricated
+  number" reasoning as Q2's AI stub — implemented identically for consistency.
+
+- **Request Reports — asynchronous generation is a documented, deliberate simplification.**
+  claude.md asks for an Edge Function or pg_cron job to move `queued → ready|failed`. Neither was
+  reachable: no Supabase MCP connector (confirmed via `ToolSearch`, see above), and the
+  service-role REST fallback can reach PostgREST but cannot deploy an Edge Function or schedule
+  pg_cron. Per the phase brief's own fallback instruction, `POST /api/report-requests`
+  (`lib/reportRequests.ts`'s `createReportRequest`) instead inserts the `queued` row and then
+  generates the report **synchronously in the same request**, transitioning it to `ready` or
+  `failed` before returning — not left stuck at `queued` forever, but not genuinely asynchronous
+  either.
+  **Real bug found and fixed during the self-audit**: the status-transition `UPDATE` 500'd with
+  PostgREST's `PGRST116` ("0 rows") — `report_requests`' RLS grants the requester `INSERT` (the
+  "own rows + `request_reports` to create" policy from Phase 2) but not `UPDATE`; that transition
+  was designed for a trusted background worker, not the requesting user's own session. Fixed by
+  routing only that one write through `createAdminClient()` — standing in for the missing
+  privileged async worker, the same reasoning `lib/supabase/server.ts` already documents for
+  `admin.inviteUserByEmail`. Verified live end-to-end after the fix: a `Customers` request reached
+  `ready` with a real downloadable file; a `Whatsapp Messages` request reached `failed` with a
+  clear reason.
+  **No Storage bucket was provisioned** (no DDL/dashboard access to create one) — the generated CSV
+  is embedded directly as a `data:text/csv;base64,...` URI in `report_requests.file_url`, small
+  enough for this dataset and genuinely downloadable from a browser with zero extra
+  infrastructure.
+  **7 of the 10 report types generate a real CSV** (Customers; Call Logs (All/Unique); Interactions
+  (All) and (Last/Unique), from `v_interactions`; Allocations (Common Pool/Pending/Completed), from
+  `v_allocations` with "Pending"/"Completed" interpreted as attempted-but-not-yet-terminal vs.
+  attempted-and-selected/joined — not defined anywhere in the signed-off HTML, so this phase's own
+  reasonable call). **The other 3 (Whatsapp Messages, SMS Interactions, Emails) reach `status:
+  "failed"` with an honest reason** — no message/SMS/email log table exists anywhere in the schema
+  (`whatsapp_templates` holds message *templates*, never sent messages), so fabricating a report
+  for them was rejected in favor of a truthful failure. Live-verified that Created Date vs. Last
+  Interaction produce genuinely different result sets for the same report type and range (8
+  candidates by `created_at` vs. 3 by last real call, for the same 10-day window) — the checkpoint
+  claude.md/the phase spec asks for.
+  `report_requests` has no error-message column, so a failure's reason is returned only in that
+  same POST response, not persisted — a later `GET` sees `status: "failed"`, `file_url: null`,
+  without the "why" (documented in `lib/reportRequests.shared.ts`).
+  The "History" button (previously unbound) now toggles a real request-history panel reading `GET
+  /api/report-requests`; "View Schedule" stays unbound — a "schedule" implies recurring report
+  generation, which needs the same deploy access this phase never had. A "Date Basis" selector
+  (Created Date/Last Interaction) was added to the form — the signed-off HTML's Request Reports
+  screen never actually has one (confirmed by reading the source markup), but the phase spec
+  explicitly requires it, so this is new UI, the same class of deliberate addition Phase 5 made for
+  Schedule Follow-up's recurrence checkbox.
+
+- **Rechurn's eligible-status set matches the mock's actual (not apparent) behavior.**
+  `RECHURN_ELIGIBLE_STATUSES = [no_response, not_interested, rejected]` (`lib/rechurn.shared.ts`)
+  reproduces exactly what the Phase 1 mock's `getRechurnCount` computes, even though its "Select
+  Status" dropdown lists all 9 statuses — the mock always ANDs the dropdown selection with this
+  fixed eligible set regardless of what's picked, a source-HTML quirk rather than a real "any
+  status" filter. `v_rechurn` itself is unfiltered (confirmed live: it returns every application
+  regardless of status) — narrowing to rechurn-eligible statuses, the date-basis column
+  (`created_at` vs. `last_interaction_at`), and the optional status-dropdown intersection all
+  happen in `getRechurnMatches`, not in the view.
+  **"Assign in Common Pool" reuses a newly-extracted `closeActiveAssignment` helper in
+  `lib/assignment.ts`**, factored out of `reassign()`'s own "flip the active row to `reassigned`"
+  step rather than a second, hand-rolled closing path (per the phase brief's explicit instruction)
+  — it also clears `applications.assigned_recruiter_id`, which `reassign()` normally leaves to its
+  own follow-up `insertAssignment` call to do; there's no follow-up insert for the common-pool
+  path, so `closeActiveAssignment` does it directly. **"Change owner to Specific Users" calls
+  `reassign()` directly**, unmodified, per the same instruction.
+  The common-pool action is gated on **both** `manage_rechurn` (the base Rechurn permission) **and**
+  `bulk_import`, per the signed-off HTML's own stated requirement on that specific option
+  ("Allowed if user has access to bulk import permission") — verified live: a recruiter (lacking
+  `manage_rechurn` entirely) gets `403` on `/api/rechurn/initiate` regardless of mode.
+  **Live-tested end to end with real mutations, then fully restored**: `POST /api/rechurn/count`
+  returned `3`, matching a direct `v_rechurn` query filtered to the 3 eligible statuses exactly.
+  "Change owner to Specific Users" (→ Suresh Pillai) produced 3 new `active` assignment rows and
+  flipped the 3 old ones to `reassigned` with `unassigned_at` set — a real history trail, not an
+  in-place update. "Assign in Common Pool" (run immediately after, on the same 3, now
+  Suresh-owned) cleared all 3 `applications.assigned_recruiter_id` to `null` and closed their
+  active assignment rows; all 3 then appeared in `v_allocations` with `bucket: "new"`, confirming
+  they reappear in Allocations' New bucket. Afterward, all 3 applications' assignment history and
+  `assigned_recruiter_id` were restored to their exact original values via the service-role key
+  (deleted the test-created `assignments` rows, reinserted one `active` row each pointing at the
+  original recruiter) — confirmed with a final direct-DB read matching the pre-test state exactly.
+
+- **`npx tsc --noEmit` clean** throughout (checked after the backend modules, again after the
+  RLS-driven fixes above, and once more before committing).
+
+- **Self-audit run against the live dev server** (port 3002 — 3000 and presumably others were
+  already occupied), signed in as Admin (Rakshit Verma) and recruiter Ayesha Khan via
+  `/api/auth/login`, cross-checked against direct service-role REST queries:
+  - ✅ **Dashboard, all four ranges** — `today`/`yesterday` correctly return all-zero (no seed data
+    in those windows) without any `NaN`/divide-by-zero; `last7` (`total: 1` call, `candidates.total:
+    5`) and `last30` (`total: 3` calls, `connected: 2`, `avgTalkSeconds: 213 = (284+142)/2`,
+    `candidates.total: 14`, stage buckets summing to 14) both matched hand-computed values from the
+    raw seed data exactly.
+  - ✅ **Open Actions match Allocations/Follow-Ups exactly** — Dashboard's `unassigned: 5` /
+    `pendingFollowUps: 7` matched `GET /api/allocations?bucket=new` (`total: 5`) and `GET
+    /api/follow-ups?bucket=pending` (`total: 7`) byte-for-byte, called directly.
+  - ✅ **Recruiter scoping** — Ayesha's `last30` dashboard showed exactly her 2 own-`resolved_agent_id`
+    calls (not the 3 org-wide) and her 2 own-assignment candidates (not 14), with the split-status
+    candidate behavior documented above confirmed live.
+  - ✅ **Analytics** — `callTrends.totalCalls: 3` (admin, `last30`) matched the Dashboard/reports
+    call totals; the average reference line (`avgMinutes: 0.2`) is `totalMinutes / points.length`,
+    genuinely computed, verified by hand; Top 5 User Performances returned exactly 2 rows (Ayesha:
+    2 total/0 inbound, Suresh: 1/0) — fewer than 5 because only 2 real agents have calls, matching
+    the checkpoint's "or fewer" clause; scoped to Ayesha it returned exactly her own 1 row.
+  - ✅ **Reports** — `pipelineFunnel`/`callOutcomes`/`callsByRecruiter` all matched direct DB
+    queries (Ayesha: 2 total/1 connected/284s avg; Suresh: 1 total/1 connected/142s avg);
+    `unattributedCallCount: 1` matched the one seeded call with `application_id: null`; a recruiter
+    gets `403`, confirming the `view_all_records` gate.
+  - ✅ **Request Reports** — queued→ready and queued→failed both verified live after the RLS fix
+    above; Created Date vs. Last Interaction produced genuinely different result sets (8 vs. 3
+    candidates for the same window).
+  - ✅ **Rechurn** — count matched a direct `v_rechurn` query; both initiate modes verified with
+    real mutations and fully restored (above); `bulk_import` gating confirmed on the common-pool
+    path specifically.
+  - All 5 pages were also fetched as rendered HTML for both users: Dashboard/Analytics render
+    (with real numbers) for both roles; Reports/Request Reports/Rechurn render their permission-
+    gated message for Ayesha and their real content for Rakshit — confirmed via direct string
+    matches on real seed names (`Ayesha Khan`, `Suresh Pillai`) and section headers, not just a
+    200 status code.
+  - No checkpoint from the phase file came back partial or failing after the two bugs above were
+    fixed; both bugs were genuine (RLS blocking a write/read the route needed), not design
+    ambiguity, and both are now fixed at the root (the query module), not papered over in a route
+    handler.
+
+- **Still open / deliberately out of scope**: no Storage bucket or Edge Function/pg_cron (documented
+  above, blocked on deploy access this session); Whatsapp Messages/SMS Interactions/Emails reports
+  (no backing schema — documented above); Wrap up/Break/Idle Time in Login Analytics (no history
+  table — documented above); the pre-existing "Offered" stage gap (ui-gaps.md item 15, now visible
+  on Analytics too); "Customers By (Select Field)" stays its static empty state, per the phase
+  spec's own instruction to keep it that way; Phase 7 (settings/hardening) untouched.

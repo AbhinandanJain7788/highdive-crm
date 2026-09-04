@@ -30,5 +30,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // Best-effort: backs Analytics' Login Duration widget (Phase 6). Never blocks sign-in
+  // on a logging failure — the row simply won't exist and that session's duration is
+  // undercounted, which is far better than a working login failing on an insert error.
+  try {
+    await supabase.from("activity_logs").insert({
+      actor_id: data.user.id,
+      action: "login",
+      entity_type: "user",
+      entity_id: data.user.id,
+    });
+  } catch (err) {
+    console.error("Failed to log login activity", err);
+  }
+
   return NextResponse.json({ data: { userId: data.user.id } });
 }

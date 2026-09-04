@@ -84,7 +84,10 @@ theme, not by which batch found it.
     `application_status` enum has no value that maps to it (see Phase 0's As-Built Notes on the
     `rejected`→Screening / `not_interested`,`no_response`→Contacted mapping). Job Detail's
     Pipeline Breakdown and Reports' Pipeline Funnel will always show 0 for "Offered." Pre-existing
-    Phase 0 gap, now visible on two more screens.
+    Phase 0 gap, now visible on two more screens. **Confirmed live in Phase 6**: Reports' Pipeline
+    Funnel and Analytics' Conversion Funnel (`lib/pipeline.ts`'s `getDefaultPipelineFunnel`, which
+    both screens now share) both genuinely return `count: 0` for "Offered" — not a bug in either,
+    just this same gap surfacing on two more real, query-backed screens instead of two more mocks.
 16. **Team Live Status's per-member Call Tracking / Call Recording / Version fields, and its
     7-bucket status taxonomy (Idle/On Call/Wrapping up/On Break/Checked Out/Logged Out/Hasn't
     Logged in), have no backing schema.** Phase 0's `live_status` enum only has 4 values. Rows
@@ -94,16 +97,27 @@ theme, not by which batch found it.
     the source too, but flagged as looking broken live). `getRechurnCount` now respects the
     status dropdown and the Today/Last 30 Days/Select Range basis (Created Date or Last
     Interaction), instead of always using the fixed eligible-status set unconditionally.
-18. **Analytics' Overall tab numbers (Call Trends, Talk Time, Customer Stages, Conversion Funnel,
-    Login Analytics, Top 5 User Performances, the `avg(39.3)` reference line) are hard-coded
-    literals in the source itself**, never computed from any seed array — not something Phase 1
-    introduced. These will need to become real query-backed metrics in Phase 5/6.
+18. ~~Analytics' Overall tab numbers are hard-coded literals~~ — **fixed in Phase 6.** Call
+    Trends, Talk Time (incl. the average reference line), Customer Stages, and Conversion Funnel
+    are now computed from real `calls`/`candidates`/`applications`/`pipeline_stages` data via
+    `GET /api/analytics/overall` (`lib/analytics.ts`, `lib/pipeline.ts`), scoped hourly (Today) or
+    daily (Last 7/30 Days). Top 5 User Performances is real (`GET /api/analytics/top-users`).
+    Login Analytics' "Login Duration" is now real too (paired login/logout `activity_logs` rows,
+    added this phase) — but "Wrap up Time"/"Break Time"/"Idle Time" stay a genuine `--`: nothing
+    in the schema logs a history of `live_status` transitions (only the *current* state), so
+    there's no real duration to compute for those three. See claude.md's Phase 6 As-Built Notes
+    for the full design.
 19. **Recruiters list is 5 people in Phase 1's mock vs. 6 in the source's own hardcoded
     `recruiters` array.** The source's list always includes Tanvi Shah regardless of her invited
     status; Phase 1's mock filters to `status === 'active'`, excluding her (and Meera Nair, a
     Phase-0-only synthetic addition). Tanvi has 2 call log rows attributed to her that never
     surface on `/recruiters`, `/recruiters/[id]`, or Reports' Calls by Recruiter as a result.
     **Decision needed:** should invited recruiters appear in these three screens?
+    **Phase 6 update:** Reports' Calls by Recruiter now reads the real, live "recruiter" list
+    (`lib/recruiters.ts`'s `recruiterRoleFilter`, `status='active'`) instead of the old
+    `lib/mock`-seeded 5/6-person casts — same underlying limitation (Tanvi Shah is `invited`, not
+    `active`, so she's still excluded), but now consistent with `/recruiters` rather than a third,
+    independently-hardcoded list.
 
 ## D. Minor, low-stakes items
 

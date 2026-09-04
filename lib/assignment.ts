@@ -226,6 +226,34 @@ export async function manualAssign(
   return { assigned, skipped };
 }
 
+// Closes whatever active assignment row an application currently has, without opening
+// a new one — the "flip to reassigned" half of reassign() below, factored out so
+// Rechurn's "Assign in Common Pool" (Phase 6) can reuse the exact same closing path
+// instead of hand-rolling a second one (per claude.md Phase 6's own instruction).
+// Also clears applications.assigned_recruiter_id, which insertAssignment would
+// otherwise be the one keeping in sync — there is no follow-up insert here to do it.
+// Safe to call on an application with no active row (e.g. already in the common
+// pool): the update simply matches zero rows and the clear is a no-op.
+export async function closeActiveAssignment(
+  supabase: SupabaseClient<Database>,
+  applicationId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { error: updateError } = await supabase
+    .from("assignments")
+    .update({ status: "reassigned", unassigned_at: new Date().toISOString() })
+    .eq("application_id", applicationId)
+    .eq("status", "active");
+  if (updateError) return { ok: false, message: updateError.message };
+
+  const { error: clearError } = await supabase
+    .from("applications")
+    .update({ assigned_recruiter_id: null })
+    .eq("id", applicationId);
+  if (clearError) return { ok: false, message: clearError.message };
+
+  return { ok: true };
+}
+
 // Reassignment never updates a row in place — it flips the current active row (if
 // any) to 'reassigned' and inserts a fresh active one, so assignment history
 // survives (claude.md). The partial unique index still protects against two
@@ -235,12 +263,8 @@ export async function reassign(
   supabase: SupabaseClient<Database>,
   params: { applicationId: string; recruiterId: string; assignedBy: string }
 ): Promise<{ ok: true } | { ok: false; code: "conflict" | "server_error"; message: string }> {
-  const { error: updateError } = await supabase
-    .from("assignments")
-    .update({ status: "reassigned", unassigned_at: new Date().toISOString() })
-    .eq("application_id", params.applicationId)
-    .eq("status", "active");
-  if (updateError) return { ok: false, code: "server_error", message: updateError.message };
+  const closed = await closeActiveAssignment(supabase, params.applicationId);
+  if (!closed.ok) return { ok: false, code: "server_error", message: closed.message };
 
   const result = await insertAssignment(supabase, {
     applicationId: params.applicationId,
