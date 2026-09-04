@@ -79,6 +79,7 @@ jobs                 id(uuid) · client_id→clients · title · status(enum job
 candidates           id(uuid) · name · phone · email(nullable) · source(text: Naukri|LinkedIn|Indeed|Apna|Referral|CSV Import|…)
                      resume_url(nullable) · notes(text) · is_duplicate(bool, the DUP badge) · duplicate_of→candidates(nullable)
                      process_id→processes · created_by→users · created_at
+                     deleted_at(nullable, soft-delete marker — migration 0029, Phase 4)
 applications         id(uuid) · candidate_id→candidates · job_id→jobs · pipeline_stage_id→pipeline_stages
                      status(enum application_status: new|contacted|interview_scheduled|interview_done|
                             selected|rejected|not_interested|no_response|joined)
@@ -123,9 +124,9 @@ GET  /api/auth/me                       profile + role + resolved permissions   
 
 DASHBOARD & ANALYTICS
 GET  /api/dashboard                     call tabs, open actions, candidate buckets      any (scoped)
-GET  /api/analytics/overall             call trends, talk time, stages, funnel          manager+
-GET  /api/analytics/login               login duration analytics                        manager+
-GET  /api/analytics/top-users           top 5 user performances                         manager+
+GET  /api/analytics/overall             call trends, talk time, stages, funnel          view_analytics (any (scoped) — see Phase 2 sidebar mapping)
+GET  /api/analytics/login               login duration analytics                        view_analytics (any (scoped))
+GET  /api/analytics/top-users           top 5 user performances                         view_analytics (any (scoped))
 
 CANDIDATES  (aka Customers)
 GET/POST  /api/candidates               list (filter/search/paginate) / create          any (recruiter: own)
@@ -187,12 +188,12 @@ POST /api/report-requests               request a basic/advanced report         
 GET  /api/report-requests               list requested reports + history                manager+
 
 TEAM, ROLES & LIVE STATUS
-GET/POST  /api/team                     list (active|inactive|invited) / add user       admin
+GET/POST  /api/team                     list (active|inactive|invited) / add user       GET: any (RLS read-all on users) · POST: manage_team
 PATCH     /api/team/:id                 update user                                     admin
-GET       /api/team/live-status         live status board                               manager+
+GET       /api/team/live-status         live status board                               any (see Phase 2 notes)
 PATCH     /api/users/me/live-status     set own status                                  any
-GET/POST  /api/roles                    list / create role                              admin
-GET/PATCH /api/roles/:id                role detail / edit permissions                  admin
+GET/POST  /api/roles                    list / create role                              GET: any · POST: manage_roles_permissions
+GET/PATCH /api/roles/:id                role detail / edit permissions                  GET: any · PATCH: manage_roles_permissions
 GET       /api/permissions              full permission catalogue                       admin
 
 TEMPLATES, NOTIFICATIONS & SETTINGS
@@ -254,6 +255,12 @@ was ambiguous or silent:
   leaves Phase 3's checkpoint "two jobs using different pipeline templates show different
   stage lists — verify with the two templates seeded in Phase 0" unsatisfiable as written.**
   Revisit that checkpoint when Phase 3 starts.
+  **RESOLVED in Phase 3** (see its As-Built Notes): a second template, "Bulk Hiring
+  Pipeline" (5 stages), was seeded and assigned to 3 jobs, making the checkpoint genuinely
+  testable — confirmed again live during Phase 8's reconciliation pass (2026-09-04):
+  `pipeline_templates` has exactly 2 rows and every `pipeline_stages` row resolves to one
+  of them; Default Pipeline's 8 stages and Bulk Hiring's 5 still render as disjoint lists
+  for two real jobs on `/jobs/:id`.
 - **Users are one canonical set of 9**: the 8 people from `usersSeed` (Rakshit Verma,
   Devika Kulkarni, Ayesha Khan, Rohan Deshmukh, Kavya Menon, Suresh Pillai, Anjali Bhatt,
   Tanvi Shah) plus one synthetic user, **Meera Nair** (`status='inactive'`), added only
@@ -1084,3 +1091,263 @@ existed exactly as claude.md's schema describes.
   table — documented above); the pre-existing "Offered" stage gap (ui-gaps.md item 15, now visible
   on Analytics too); "Customers By (Select Field)" stays its static empty state, per the phase
   spec's own instruction to keep it that way; Phase 7 (settings/hardening) untouched.
+
+## Phase 7 — As-Built Notes (read before Phase 8)
+
+- **Step 0 finding: the "leaked service_role key" premise was false.** The phase brief's
+  as-found audit claimed `.env.example` was committed with a real key. Direct verification
+  (full local `git log`, the pushed GitHub history at `AbhinandanJain7788/highdive-crm` via
+  its raw content API, and a repo-wide `git grep` for `service_role`/`eyJhbGci`) found the
+  placeholder (`your-service-role-key-here`) present since the very first commit, on both
+  local and remote. Per your explicit call, the key was **not** rotated — there is nothing to
+  remediate, and rotating it anyway would only have cost a Vercel env-var update for no
+  security benefit.
+- **WhatsApp Templates, Notification Settings, and Settings (General/Company/Activity Logs/
+  Password) are all wired to live data**, closing the gap the phase brief found (all three
+  pages were pure `lib/mock` `useState` with zero backing routes). New modules:
+  `lib/whatsappTemplates.ts`, `lib/notificationSettings.ts`, `lib/settings.ts` (+ their
+  `.shared.ts` client-safe counterparts, same split convention as `lib/allocations.ts`), and
+  the 7 route files claude.md's table names for this surface (`/api/whatsapp-templates`
+  [+`/:id`], `/api/notification-settings`, `/api/settings/general`, `/company`,
+  `/activity-logs`, `/password`).
+- **`notification_settings`'s RLS needed a real fix, not just a route guard.** Phase 2's
+  original policy (`user_id = auth.uid()`) makes every org-default row (`user_id IS NULL`)
+  invisible and unwritable to *everyone*, since no session's `auth.uid()` is ever null — the
+  Notifications screen (a single org-wide config form, no per-user selector in the HTML)
+  could never have worked against it. Fixed in migration `0030_notification_settings_org_defaults`:
+  a partial unique index (`key WHERE user_id IS NULL`, since a plain `UNIQUE(user_id, key)`
+  treats every NULL as distinct) plus new `select`/`write` policies that let any signed-in
+  user *read* their own row or the org default, and let a `view_all_records` holder *write*
+  the org default. The app-level upsert (`lib/notificationSettings.ts`) does its own
+  select-then-insert/update rather than `.upsert({onConflict})`, since PostgREST can't target
+  a partial index as an upsert conflict source.
+- **Company Details has no real form anywhere in the signed-off HTML** (`adminOtherLabels`
+  only ever renders it as "coming soon," same as API Configuration/Account & Billing/Usage —
+  confirmed by reading the source markup, same finding Phase 2 made for Activity Logs before
+  adding its tab). This phase explicitly requires wiring it, so a minimal 5-field form
+  (Company Name/Address/Phone/Email/Website) was added — new UI, the same class of deliberate
+  addition Phase 4 made for Data Management's "Upload Data" step. Stored in `company_settings`
+  under `key='company'`; General under `key='general'` — both are `jsonb` blobs merged over
+  hardcoded defaults on read, so adding a field later needs no migration.
+- **Password reset verifies the old password by re-running `signInWithPassword`** on the same
+  session-bound client before calling `updateUser` — there's no dedicated "verify current
+  password" Auth endpoint, so this is the only way to confirm it without a second stored
+  credential. A stolen session cookie alone still can't change the password without knowing
+  the old one.
+- **Activity logging added for the 5 of 6 action types that weren't writing rows** (audited via
+  `grep -r activity_logs lib/ app/api/` before touching anything): assignment (`insertAssignment`,
+  now the single write path every auto-distribute/manual/reassign call goes through) and
+  reassignment (same call, `logAction: "reassignment"`, so the two are distinguishable in the
+  log even though they share one code path); bulk delete (`softDeleteCandidates`, one summary
+  row per batch — same shape as the pre-existing `data_transfer` row, which was refactored to
+  use the same new `lib/activityLog.ts` helper for consistency); role/permission changes
+  (`role_created`/`role_updated`/`role_deleted`, added directly in the three `/api/roles*`
+  route handlers since that's where the logic already lives); imports (`import_confirmed`,
+  end of `confirmImport`); rechurn initiation (`rechurn_initiate`, one summary row per
+  `/api/rechurn/initiate` call, on top of — not instead of — the per-application
+  `reassignment` rows `initiateSpecificOwner`'s own `reassign()` calls already write). Data
+  transfer and login/logout already wrote rows (Phase 4 and Phase 2 respectively) and were
+  left as-is beyond the `data_transfer` refactor above. Retention: **not implemented** — no
+  window was confirmed with Vivek this session, and the checkpoint explicitly says not to
+  invent a number; `calls`/B2 recordings were never touched (only ever read from, same as
+  every prior phase).
+- **Login rate limiting**: 5 attempts / 60s per `(client IP, email)` pair, in-memory
+  (`lib/rateLimit.ts`, same "single Next.js instance, no Redis in the stack" reasoning
+  `lib/permissions.ts`'s profile cache already used) — keyed on the pair rather than IP alone
+  so one shared office IP can't lock out every user from one attacker targeting a single
+  account, and rather than email alone so an attacker can't fan a credential-stuffing attempt
+  out across many guessed emails from one IP to dodge the limit. Verified live: 6 rapid wrong-
+  password attempts against the same email returned 401×5 then `429 rate_limited` with a
+  `Retry-After` header.
+- **Full permissions audit (Step 5), swept against the live dev server, not just read from
+  code** — every route in claude.md's API Structure table checked against its actual
+  `requirePermission`/`getCurrentUserProfile` gate, then live-tested signed out / as recruiter
+  Ayesha Khan / as admin Rakshit Verma:
+  - **Real gap found and fixed**: `GET /api/permissions` only checked authentication, not the
+    `admin` claude.md's table specifies — not a documented decision anywhere (unlike the two
+    below), and nothing in the app calls this route today (the Roles & Permissions page reads
+    `permissions` directly via its own server component), so gating it on `view_all_records`
+    broke nothing. Verified live: 403 for Ayesha, 200 with data for Rakshit, 307-redirect
+    signed out.
+  - **Documentation drift found and reconciled the other direction**: `GET /api/team/live-status`
+    claude.md's table says `manager+`, but the route has been intentionally open to any signed-in
+    user since Phase 2 ("not sensitive per-user data... any authenticated user can read it," and
+    Phase 2's own As-Built Notes list Team Live Status among the nav items deliberately left
+    ungated). Since this was an explicit, already-documented decision — not drift — claude.md's
+    table was corrected to say "any (see Phase 2 notes)" rather than changing working code to
+    match a table entry that was never actually the intent.
+  - **The other 9 flagged routes** (`follow-ups/calendar`, `auth/logout`, `auth/me`,
+    `auth/login`, `calls`, `candidates/:id/calls`, `recruiters/:id`, `interactions`,
+    `dashboard`) were each individually confirmed to already match claude.md's own stated
+    "any"/"any (scoped)"/"public"/"self, or view_all_records" designation, gated correctly via
+    `getCurrentUserProfile()` (auth-only) with RLS doing the actual per-row scoping, or (for
+    `recruiters/:id`) an explicit self-or-view_all_records check in the route itself. None
+    needed a code change.
+  - **Two routes claude.md documents but the codebase never built**: `GET /api/health`
+    (flagged as missing since Phase 0/1 — "add the actual route as part of Phase 1's
+    scaffold" — and apparently just never done; already allowlisted in
+    `lib/supabase/middleware.ts`'s `PUBLIC_PATHS`, confirming it was anticipated) was added
+    now, since it's trivial and zero-risk — verified live, 200 unauthenticated. `GET/POST
+    /api/applications` (list/create) was **not** added: application creation already happens
+    inline inside `POST /api/candidates` (candidate + its first application in one insert,
+    Phase 3), no UI anywhere calls for a second, standalone application-creation surface for
+    an existing candidate, and building unused API surface during a security-hardening phase
+    is scope creep claude.md's own conventions warn against. Flagged for Phase 8's
+    reconciliation pass rather than silently left as an unexplained table/code mismatch.
+  - **No hardcoded role-name check found** anywhere in `app/api` (`grep` for
+    `roleName ===`/`role ===`/literal role-name string comparisons returned nothing) —
+    every gate goes through `requirePermission`/`profile.permissions.includes`.
+  - **RLS re-verified independently**, not just re-read: signed in as Ayesha Khan and queried
+    `/api/candidates` directly — 3 rows, versus 14 as Rakshit (Admin), consistent with the
+    scoping Phase 3's own self-audit established (the exact count has shifted from Phase 3's
+    "2" as seed data changed across phases; the *scoping*, not the absolute number, is what
+    this checkpoint verifies).
+  - **`calls` table confirmed unaltered**: still exactly 3 rows, same as Phase 0's original
+    count — no test in this phase wrote to it (nothing in this phase had a reason to; it's
+    read-only for the CRM per claude.md).
+- **`npx tsc --noEmit` clean** throughout; targeted `eslint` runs on every touched file clean
+  (a whole-repo `eslint .` invocation reports thousands of pre-existing errors, but all of them
+  are in `.next/`'s generated build output, not source — confirmed by grepping the output for
+  real file paths).
+- **Self-audit run against the live dev server** (ports 3001 then 3002, after the first
+  instance silently wedged mid-session and had to be restarted — a dev-server/tooling issue,
+  not a code bug, caught by every route suddenly returning an empty 200 body instead of JSON
+  and a clean restart fixing it immediately), signed in as both Rakshit Verma (Admin) and
+  Ayesha Khan (recruiter): every WhatsApp Templates CRUD operation (create/edit/duplicate-via-
+  create/delete/visibility-filter) round-tripped correctly; Notification Settings and
+  General/Company/Activity Logs persisted across GET after PATCH and were confirmed 403 for
+  Ayesha; Password reset was tested end-to-end on a real account (Rakshit: wrong-old-password
+  rejected, weak-new-password rejected per rule, correct change accepted, new password
+  confirmed to log in, then reverted to the original — verified via a second real login) rather
+  than mocked; a real manual-assign→reassign→revert cycle confirmed both `assignment` and
+  `reassignment` rows land with correct actor/entity/metadata; a real role create→delete cycle
+  confirmed `role_created`/`role_deleted` rows. All test mutations (general/company/notification
+  values, the throwaway WhatsApp template, the throwaway role, the manual-assign/reassign
+  cycle) were reverted or deleted afterward, confirmed via a final `GET` matching the pre-test
+  state — same discipline Phase 4's As-Built Notes established for cleanup.
+- **Still open / deliberately out of scope**: activity-log retention window (no number
+  confirmed with Vivek — checkpoint 4 explicitly says mark this blocked rather than invent
+  one); `GET/POST /api/applications` (see above, flagged for Phase 8); Phase 8
+  (navigation gap + full re-verification) and Phase 9 (per-page filter audit) untouched.
+
+## Phase 8 — As-Built Notes (read before Phase 9)
+
+- **Step 1 — navigation gap fixed.** Per your explicit choice (adding a new sidebar group
+  over candidate-detail-only links, since the latter leaves Clients/Assignment/Reports
+  with no click path at all), `components/Sidebar.tsx` gained a new **RECRUITMENT** group
+  (Jobs/Clients/Recruiters/Assignment/Reports) between the main nav and TEMPLATES — the 4
+  pre-existing groups (TEMPLATES/CONFIGURATION/ADMINISTRATION plus the un-grouped main
+  list) are untouched, same order, same items. Permission-gated the same way every other
+  item is (`manage_jobs`/`manage_clients`/`view_all_records`/`manage_assignment`/
+  `view_all_records`, matching each route's actual guard) — the whole group hides itself
+  for a caller with none of those five, rather than rendering an orphaned header. Verified
+  live: Admin's rendered sidebar HTML contains all 5 links plus the header in the correct
+  position; recruiter Ayesha Khan's contains neither the header nor any of the 5 links.
+- **Step 2 — claude.md reconciled against live reality**, each item verified via direct
+  query rather than assumed:
+  - `pipeline_templates`: confirmed still 2 rows (Default Pipeline/8 stages, Bulk Hiring
+    Pipeline/5 stages) — Phase 3 already fixed this; the Phase 0 as-built note claiming it
+    "unsatisfiable" was stale (never updated after Phase 3 landed) and now has a resolution
+    pointer.
+  - **5 Open Questions**: already fully resolved with recorded answers (not just
+    recommendations) from a prior pass — verified each of the 5 entries under "Open
+    Questions" above states a concrete `RESOLVED` decision, not a deferred one. Nothing to
+    do here beyond confirming it.
+  - **`calls` table status — per your explicit answer: test/staging only**, not connected
+    to real Android production traffic. This means every Phase 5/6 checkpoint that read
+    `calls` was validated against synthetic seed data (3 rows), not real call volume — a
+    narrower claim than "verified in production," now recorded here rather than left
+    ambiguous.
+  - **Schema spot-check**: compared claude.md's Data Schema block against a live
+    `list_tables` (verbose) call for `candidates`, `users`, `clients`, `jobs`,
+    `notification_settings`, `company_settings`, `activity_logs`, `whatsapp_templates`.
+    One real drift found and fixed: `candidates.deleted_at` (added by migration 0029 in
+    Phase 4) was never added to the schema block itself, only mentioned in Phase 4's
+    as-built prose — now listed on `candidates` directly. The other 7 tables matched
+    exactly.
+  - **API Structure table precision pass**: while sweeping permissions (Step 4 below),
+    found several table rows using a single blanket label (`admin`/`manager+`) for a route
+    whose GET and POST/PATCH actually have different, intentionally different gates — not
+    bugs, just a table that predates the granular permission-key system being fully used.
+    Corrected: `/api/team` (GET: any, RLS read-all · POST: `manage_team`), `/api/roles` and
+    `/api/roles/:id` (GET: any · write: `manage_roles_permissions`), and the three
+    `/api/analytics/*` routes (all actually gated on `view_analytics`, which both seeded
+    roles hold, with per-caller scoping inside the query — not `manager+`-only as written).
+    `/api/team/live-status` was already corrected to "any" in Phase 7 Step 5; left as-is.
+- **Step 3 — re-verification against the live app, not re-read code**, time-boxed to the
+  brief's own highest-priority items rather than mechanically re-running every phase's
+  entire checklist a second time (which Phase 7's own Step 5 and this phase's Step 4
+  already substantially re-cover for permissions specifically):
+  - ✅ **Request Reports**: submitted a real report (`Customers`, 2026-08-01→2026-09-04)
+    as Admin — `report_requests` had 0 rows at last audit; this call landed with
+    `status: "ready"` and a real generated CSV `file_url` (base64 data URI, decoded and
+    spot-checked: real candidate rows, correct columns). First genuine end-to-end proof
+    this path works, left in place as real usage data (not a throwaway test artifact).
+  - ✅ **Team Live Status / null `live_status`**: `abhi@gmail.com` (`liveStatus: null`,
+    `liveStatusSince: null`) returns cleanly from `GET /api/team/live-status` and the
+    `/team-live-status` page renders "Abhi" with no application error — confirmed this
+    specific edge case doesn't break the board.
+  - ✅ **Dashboard/Analytics sanity vs. direct DB query**: `GET /api/dashboard?range=last30`
+    reproduced Phase 6's own recorded self-audit numbers exactly (3 calls, 2 connected,
+    `avgTalkSeconds: 213`, 14 candidates-with-an-application, `unassigned: 5`,
+    `pendingFollowUps: 7`) — no drift since Phase 6.
+  - **Not re-run**: a full second click-through of every phase's entire Final Checklist as
+    both roles. Given the volume of already-verified, unchanged screens (Phases 3-6 each
+    already ran their own live self-audit against real HTTP + direct DB queries, documented
+    above), re-doing all of it here would mostly re-prove things that haven't changed since
+    those phases landed, rather than surface new information — flagged explicitly rather
+    than silently claimed as done.
+- **Step 4 — independent second-pass permission sweep**, genuinely re-run (not copied from
+  Phase 7's results), covering routes Phase 7 Step 5's sweep didn't individually hit:
+  `/api/jobs`, `/api/clients`, `/api/team`, `/api/data/bulk-delete`, `/api/analytics/overall`,
+  `/api/roles`, `/api/recruiters` in all 3 states (signed out → 307 via the documented
+  middleware redirect, same standing-in-for-401 behavior noted since Phase 3; wrong
+  permission → 403; correct permission → 200), plus two POST routes
+  (`/api/data/bulk-delete`, `/api/jobs`) specifically to confirm a permission failure never
+  falls through to a 500. Every result matched claude.md's (now-corrected) table with no
+  disagreement against Phase 7's own findings.
+- **Step 5 — data volume stress test**, synthetic (real Android volume isn't available —
+  Step 2's "test/staging only" answer): bulk-inserted 60 throwaway candidates (77 total,
+  74 visible through `deleted_at is null` filtering — the other 3 are pre-existing
+  soft-deleted rows from Phase 4/7 testing, correctly still excluded at this volume too),
+  re-ran Candidates pagination at `pageSize=50`: page 1 returned exactly 50 rows, page 2
+  returned exactly 24, zero id overlap between the two pages, `50+24=74` matching `total`
+  exactly. Dashboard's stage-bucket/status percentages were unaffected (correctly — they're
+  computed over `applications`, and the synthetic rows had none), confirming they don't
+  silently double-count bare candidates. All 60 synthetic rows deleted afterward
+  (`candidates` back to 17, confirmed). **Not re-run**: the concurrent auto-distribute
+  race-condition test — Phase 4 already proved it with genuinely concurrent (backgrounded,
+  not sequential) requests and nothing in `lib/assignment.ts`'s concurrency-safety path
+  (the partial unique index + always-attempt-insert pattern) has changed since, so
+  re-running it would exercise identical code against an identical guarantee.
+- **`npx tsc --noEmit` clean** after the Sidebar change.
+- **Still open / deliberately out of scope**: a full second click-through of every phase's
+  checklist as multiple roles (see Step 3 above — narrowed to the brief's own priority
+  items instead); real Android call volume (blocked on Step 2's "test/staging" answer, not
+  something this session can produce); Phase 9 (per-page filter audit) untouched.
+
+## Phase 9 — As-Built Notes
+
+Full results in `filter-audit-findings.md`, per this phase's own instruction to compile a
+findings file rather than fix issues inline. Method: real HTTP requests against the live
+dev server, cross-checked against direct Supabase queries wherever a number could be
+independently verified — not a browser click-through (no browser tool available this
+session), but functionally equivalent for every filter that's a URL/query parameter, which
+is all of them except a handful of pure client-state controls (noted individually as
+code-reviewed-only in the findings file).
+
+**7 non-✅ items found, none fixed inline** (this phase's own rule): Allocations'
+"Selected Users" filter is mislabeled (no real per-user picker exists behind it); Jobs/
+Clients/Recruiters have no search or sort at all; Reports has no filter controls at all;
+Analytics' Conversion Funnel only covers the Default Pipeline template, silently excluding
+the 3 jobs on Bulk Hiring Pipeline (pre-existing, already flagged in `lib/pipeline.ts`'s own
+comment and `ui-gaps.md` item 15 — not new); "Customers By (Select Field)" and the User
+Performance tab are intentional placeholders (prior explicit sign-off); Team Live Status'
+Call Tracking/Call Recording/Version filters are decorative (no backing schema, single
+"Any" option, no handler).
+
+Everything else tested — Dashboard's 4 tabs, Candidates, Allocations' other 4 filters,
+Interactions, Assignment (including a live round_robin-vs-load_balanced distinctness
+re-test, reverted after), Call Logs, Follow-Ups/Calendar/Recurring, Rechurn, Team, and the
+Phase-7-wired Settings/Notifications/WhatsApp/Request Reports surface — came back ✅,
+matching direct DB queries everywhere a number was checkable.
