@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
+import { rangeOverflow, escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
 import type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition } from "@/lib/calls.shared";
 
 export type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition } from "@/lib/calls.shared";
@@ -153,6 +153,8 @@ export async function getCallRows(
   const { data, error, count } = await query
     .range(options.pagination.from, options.pagination.to)
     .returns<RawCall[]>();
+  const overflow = rangeOverflow(error);
+  if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
   return { rows: (data ?? []).map(toCallRow), total: count ?? 0 };

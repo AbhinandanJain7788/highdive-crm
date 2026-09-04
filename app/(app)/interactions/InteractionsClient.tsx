@@ -108,7 +108,14 @@ export default function InteractionsClient({
         if (!res.ok) throw new Error("Could not load interactions.");
         const body = await res.json();
         setRows(body.data ?? []);
-        setTotal(body.total ?? 0);
+        const nextTotal = body.total ?? 0;
+        setTotal(nextTotal);
+        // The API answers an out-of-range page with an empty list and the true total
+        // (lib/format.ts > rangeOverflow) rather than erroring, so clamp back onto the
+        // last real page. Covers the cases the filter reset above cannot: a deep-linked
+        // stale page, or rows deleted under us by another user while we sat on page 4.
+        const maxPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+        if (page > maxPage) setPage(maxPage);
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setLoadError(err instanceof Error ? err.message : "Could not load interactions.");

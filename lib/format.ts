@@ -31,6 +31,26 @@ export function readPagination(searchParams: URLSearchParams): Pagination {
   return { page, pageSize, from, to: from + pageSize - 1 };
 }
 
+// PostgREST answers a range whose offset sits past the end of the result set with
+// PGRST103 instead of an empty page, and every list query turned that into a thrown
+// error and a 500: narrowing a filter while on page 3, or deep-linking a stale page
+// number, crashed the route instead of rendering an empty table. Only page 2 and
+// beyond can trip it — an offset of 0 over an empty result set is satisfiable and
+// comes back as a clean [].
+//
+// The row count is what the pager needs to clamp itself back onto a real page, and on
+// this error `count` is null — the true total survives only in `details` ("An offset
+// of 20 was requested, but there are only 17 rows."), so it's recovered by pattern.
+// If PostgREST ever rewords that, the total degrades to 0 and the list renders empty;
+// it never throws, which is the property that matters here.
+export function rangeOverflow(
+  error: { code?: string; details?: string | null } | null
+): { total: number } | null {
+  if (error?.code !== "PGRST103") return null;
+  const match = /there are only (\d+) rows/.exec(error.details ?? "");
+  return { total: match ? Number(match[1]) : 0 };
+}
+
 // call_time (and other timestamptz columns shown with a time-of-day) render in IST —
 // claude.md's other date logic (the Calendar/Follow-ups "today" anchor) already
 // assumes India time. Shifting the UTC instant by +5:30 and then reading UTC

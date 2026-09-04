@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
+import { rangeOverflow, escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
 import type { InteractionRow } from "@/lib/interactions.shared";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
@@ -101,6 +101,8 @@ export async function getInteractionRows(
   const { data, error, count } = await query
     .range(options.pagination.from, options.pagination.to)
     .returns<RawInteraction[]>();
+  const overflow = rangeOverflow(error);
+  if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
   const rows = data ?? [];

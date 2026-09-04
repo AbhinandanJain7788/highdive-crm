@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { escapeFilterValue, formatDisplayDate, phoneSearchPattern, type Pagination } from "@/lib/format";
+import { rangeOverflow, escapeFilterValue, formatDisplayDate, phoneSearchPattern, type Pagination } from "@/lib/format";
 import type { CandidateRow, CandidateDetail } from "@/lib/candidates.shared";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
@@ -132,6 +132,8 @@ export async function getCandidateRows(
   const { data, error, count } = await query
     .range(pagination.from, pagination.to)
     .returns<RawCandidate[]>();
+  const overflow = rangeOverflow(error);
+  if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
   return { rows: (data ?? []).map(toCandidateRow), total: count ?? 0 };

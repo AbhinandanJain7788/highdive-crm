@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { escapeFilterValue, formatDisplayDate, type Pagination } from "@/lib/format";
+import { rangeOverflow, escapeFilterValue, formatDisplayDate, type Pagination } from "@/lib/format";
 
 export type JobStatus = Database["public"]["Enums"]["job_status"];
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
@@ -94,6 +94,8 @@ export async function getJobRows(
     .order("created_at", { ascending: false })
     .range(options.pagination.from, options.pagination.to)
     .returns<RawJobRow[]>();
+  const overflow = rangeOverflow(error);
+  if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
   return { rows: (data ?? []).map(toJobRow), total: count ?? 0 };

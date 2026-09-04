@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/supabase";
+import { rangeOverflow } from "@/lib/format";
 import {
   GENERAL_SETTINGS_DEFAULTS,
   COMPANY_DETAILS_DEFAULTS,
@@ -93,6 +94,8 @@ export async function getActivityLogs(
     .select("id, actor_id, action, entity_type, entity_id, metadata, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(from, to);
+  const overflow = rangeOverflow(error);
+  if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
   const rows = data ?? [];

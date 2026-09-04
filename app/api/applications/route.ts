@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserProfile, requirePermission } from "@/lib/permissions";
 import { APPLICATION_STATUSES } from "@/lib/candidates";
-import { escapeFilterValue, phoneSearchPattern, readPagination } from "@/lib/format";
+import { escapeFilterValue, phoneSearchPattern, rangeOverflow, readPagination } from "@/lib/format";
 import type { Database } from "@/types/supabase";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
@@ -62,6 +62,9 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false })
     .range(pagination.from, pagination.to)
     .returns<RawApplication[]>();
+
+  const overflow = rangeOverflow(error);
+  if (overflow) return NextResponse.json({ data: [], total: overflow.total });
 
   if (error) {
     console.error("GET /api/applications failed", error);
