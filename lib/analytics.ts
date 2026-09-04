@@ -3,9 +3,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/server";
 import { buildChartBuckets, resolveAnalyticsRange, pct, type AnalyticsRangeKey } from "@/lib/dateRanges";
-import { getCandidateStageSnapshot, getDefaultPipelineFunnel } from "@/lib/pipeline";
+import { getCandidateStageSnapshot, getPipelineFunnel, getPipelineTemplates } from "@/lib/pipeline";
 import type { CurrentUserProfile } from "@/lib/permissions";
-import type { AnalyticsOverall, CallTrends, TalkTimeTrend, TopUserRow, LoginAnalytics } from "@/lib/analytics.shared";
+import { statusStyles } from "@/lib/mock/styles";
+import type {
+  AnalyticsOverall,
+  CallTrends,
+  TalkTimeTrend,
+  TopUserRow,
+  LoginAnalytics,
+  CustomersByField,
+  CustomersByGroup,
+} from "@/lib/analytics.shared";
 
 export type { AnalyticsOverall, CallTrends, TalkTimeTrend, TopUserRow, LoginAnalytics } from "@/lib/analytics.shared";
 export type { AnalyticsRangeKey } from "@/lib/dateRanges";
@@ -108,21 +117,28 @@ async function getCallTrendsAndTalkTime(
   };
 }
 
-// GET /api/analytics/overall
+// GET /api/analytics/overall — `templateId` selects which pipeline template's funnel
+// to show (Phase 9 fix: previously always the default template with no way to see the
+// other one). Also returns the full template list so the client can render the
+// selector without a second round-trip.
 export async function getAnalyticsOverall(
   supabase: SupabaseClient<Database>,
   profile: CurrentUserProfile,
-  rangeKey: AnalyticsRangeKey
+  rangeKey: AnalyticsRangeKey,
+  templateId?: string
 ): Promise<AnalyticsOverall> {
   const { from, to } = resolveAnalyticsRange(rangeKey);
   const scoped = isRecruiterScoped(profile);
   const recruiterId = scoped ? profile.id : undefined;
 
-  const [{ callTrends, talkTime }, stageSnapshot, funnel] = await Promise.all([
+  const [{ callTrends, talkTime }, stageSnapshot, funnel, pipelineTemplates] = await Promise.all([
     getCallTrendsAndTalkTime(supabase, profile, rangeKey),
     getCandidateStageSnapshot(supabase, { from, to, recruiterId }),
-    getDefaultPipelineFunnel(supabase, { from, to, recruiterId }),
+    getPipelineFunnel(supabase, { from, to, recruiterId, templateId }),
+    getPipelineTemplates(supabase),
   ]);
+
+  const activeTemplateId = templateId ?? pipelineTemplates.find((t) => t.isDefault)?.id ?? pipelineTemplates[0]?.id ?? null;
 
   return {
     range: rangeKey,
@@ -131,6 +147,8 @@ export async function getAnalyticsOverall(
     talkTime,
     customerStages: { total: stageSnapshot.total, stages: stageSnapshot.crmStages },
     conversionFunnel: funnel,
+    pipelineTemplates,
+    activeTemplateId,
   };
 }
 
@@ -141,7 +159,8 @@ export async function getAnalyticsOverall(
 export async function getTopUserPerformances(
   supabase: SupabaseClient<Database>,
   profile: CurrentUserProfile,
-  rangeKey: AnalyticsRangeKey
+  rangeKey: AnalyticsRangeKey,
+  limit = 5
 ): Promise<TopUserRow[]> {
   const { from, to } = resolveAnalyticsRange(rangeKey);
   const scoped = isRecruiterScoped(profile);
@@ -165,7 +184,63 @@ export async function getTopUserPerformances(
   return ids
     .map((id) => ({ userId: id, name: nameById.get(id) ?? "Unknown", ...(byAgent.get(id) as { total: number; inbound: number }) }))
     .sort((a, b) => b.total - a.total || b.inbound - a.inbound)
-    .slice(0, 5);
+    .slice(0, limit);
+}
+
+type CustomersByRow = {
+  source: string | null;
+  applications: { status: string; created_at: string; job: { title: string } | null; recruiter: { name: string } | null }[] | null;
+};
+
+// GET /api/analytics/customers-by — Phase 9 fix for "Customers By (Select Field)",
+// previously a permanent static empty state. Groups the same "one row per candidate,
+// most recent application" set every other Analytics/Dashboard widget uses (claude.md
+// Phase 3 Open Question 5); `source` reads straight off `candidates` since it isn't an
+// application-level field.
+export async function getCustomersByGroup(
+  supabase: SupabaseClient<Database>,
+  profile: CurrentUserProfile,
+  rangeKey: AnalyticsRangeKey,
+  field: CustomersByField
+): Promise<CustomersByGroup[]> {
+  const { from, to } = resolveAnalyticsRange(rangeKey);
+  const scoped = isRecruiterScoped(profile);
+  const needsInner = scoped;
+
+  let query = supabase
+    .from("candidates")
+    .select(
+      `source, applications${needsInner ? "!inner" : ""}(status, created_at, assigned_recruiter_id, job:jobs(title), recruiter:users!applications_assigned_recruiter_id_fkey(name))`
+    )
+    .is("deleted_at", null);
+  if (from) query = query.gte("created_at", from);
+  if (to) query = query.lte("created_at", to);
+  if (scoped) query = query.eq("applications.assigned_recruiter_id", profile.id);
+
+  const { data, error } = await query.returns<CustomersByRow[]>();
+  if (error) throw error;
+
+  const counts = new Map<string, number>();
+  for (const c of data ?? []) {
+    let label: string | null;
+    if (field === "source") {
+      label = c.source;
+    } else {
+      const apps = c.applications ?? [];
+      if (!apps.length) continue;
+      const newest = apps.reduce((a, b) => (new Date(b.created_at) > new Date(a.created_at) ? b : a));
+      label =
+        field === "status"
+          ? statusStyles[newest.status as keyof typeof statusStyles]?.label ?? newest.status
+          : field === "recruiter"
+            ? newest.recruiter?.name ?? null
+            : newest.job?.title ?? null;
+    }
+    const key = label ?? "Unspecified";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
 }
 
 // GET /api/analytics/login — Login Duration is computed for real from paired

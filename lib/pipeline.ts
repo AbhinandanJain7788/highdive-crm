@@ -95,31 +95,53 @@ export async function getCandidateStageSnapshot(
 }
 
 export type FunnelStage = { id: string; name: string; sequenceOrder: number; count: number };
+export type PipelineTemplateOption = { id: string; name: string; isDefault: boolean };
+
+// Every pipeline template, for the Conversion Funnel's template selector — Phase 9's
+// audit found the funnel silently covered only the default template with no way to
+// see the other one; this is what backs the fix (pick a template rather than
+// inventing a stage-name mapping between templates with different vocabularies).
+export async function getPipelineTemplates(supabase: SupabaseClient<Database>): Promise<PipelineTemplateOption[]> {
+  const { data, error } = await supabase
+    .from("pipeline_templates")
+    .select("id, name, is_default")
+    .order("is_default", { ascending: false })
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((t) => ({ id: t.id, name: t.name, isDefault: t.is_default }));
+}
 
 // Conversion Funnel (Analytics) and Pipeline Funnel (Reports) both read real
-// `pipeline_stages` rows off the org's default `pipeline_templates` row (claude.md:
-// "ship with one default process; do not hardcode it" — same reasoning applied here to
-// the default pipeline) — never a hardcoded stage-name list. Two pipeline templates
-// exist (Phase 3's As-Built Notes: "Default Pipeline" 8 stages, "Bulk Hiring Pipeline"
-// 5 stages with a different vocabulary); this funnel only covers applications on jobs
-// using the default template, same documented, pre-existing limitation as ui-gaps.md
-// item 15 ("Offered" can never have candidates) — not a new gap introduced here.
-export async function getDefaultPipelineFunnel(
+// `pipeline_stages` rows off a `pipeline_templates` row (claude.md: "ship with one
+// default process; do not hardcode it" — same reasoning applied here to the default
+// pipeline) — never a hardcoded stage-name list. Two pipeline templates exist (Phase
+// 3's As-Built Notes: "Default Pipeline" 8 stages, "Bulk Hiring Pipeline" 5 stages
+// with a different vocabulary); each has its own stage set with no 1:1 mapping
+// between them, so this shows one template's funnel at a time (`templateId`,
+// defaulting to the org default) rather than inventing a merge — Analytics passes a
+// selector UI on top of this (Phase 9 fix for the "only covers the default template"
+// finding); Reports' Pipeline Funnel always calls it with no `templateId`, keeping
+// its pre-existing default-only behavior (ui-gaps.md item 15).
+export async function getPipelineFunnel(
   supabase: SupabaseClient<Database>,
-  options: { from?: string; to?: string; recruiterId?: string } = {}
+  options: { from?: string; to?: string; recruiterId?: string; templateId?: string } = {}
 ): Promise<FunnelStage[]> {
-  const { data: template, error: templateErr } = await supabase
-    .from("pipeline_templates")
-    .select("id")
-    .eq("is_default", true)
-    .maybeSingle();
-  if (templateErr) throw templateErr;
-  if (!template) return [];
+  let templateId = options.templateId;
+  if (!templateId) {
+    const { data: template, error: templateErr } = await supabase
+      .from("pipeline_templates")
+      .select("id")
+      .eq("is_default", true)
+      .maybeSingle();
+    if (templateErr) throw templateErr;
+    if (!template) return [];
+    templateId = template.id;
+  }
 
   const { data: stages, error: stagesErr } = await supabase
     .from("pipeline_stages")
     .select("id, name, sequence_order")
-    .eq("pipeline_template_id", template.id)
+    .eq("pipeline_template_id", templateId)
     .order("sequence_order", { ascending: true });
   if (stagesErr) throw stagesErr;
   const stageList = stages ?? [];
@@ -152,3 +174,7 @@ export async function getDefaultPipelineFunnel(
     count: counts.get(s.id) ?? 0,
   }));
 }
+
+// Reports' Pipeline Funnel has no template selector (see the comment above) — kept as
+// a thin, explicitly-named alias so that call site stays self-documenting.
+export const getDefaultPipelineFunnel = getPipelineFunnel;

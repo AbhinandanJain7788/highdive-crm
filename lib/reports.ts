@@ -21,15 +21,26 @@ type RawCall = {
 const DISPOSITION_ORDER: CallDisposition[] = ["interested", "callback_later", "not_reachable"];
 
 // GET /api/reports — Pipeline Funnel, Call Outcomes (per disposition), Calls by
-// Recruiter. No date-range control on this screen in the signed-off HTML, so it's
-// unscoped (all-time, org-wide) — an audit-style screen, unlike Dashboard/Analytics.
-export async function getReportsData(supabase: SupabaseClient<Database>): Promise<ReportsData> {
+// Recruiter. The signed-off HTML has no date-range control on this screen, so it
+// defaulted to unscoped (all-time, org-wide); Phase 9's audit flagged that as
+// "no filter controls at all" — added an optional date range (applied consistently
+// to all three sections, per the checkpoint's own "narrows all three sections
+// consistently" wording) as new UI, same class of deliberate addition Phase 4 made
+// for Data Management's Upload Data step.
+export async function getReportsData(
+  supabase: SupabaseClient<Database>,
+  range: { from?: string; to?: string } = {}
+): Promise<ReportsData> {
   const [pipelineFunnel, callsResult, recruiterIds] = await Promise.all([
-    getDefaultPipelineFunnel(supabase),
-    supabase
-      .from("calls")
-      .select("resolved_agent_id, duration_seconds, disposition, application_id, candidate:candidates(deleted_at)")
-      .returns<RawCall[]>(),
+    getDefaultPipelineFunnel(supabase, range),
+    (() => {
+      let q = supabase
+        .from("calls")
+        .select("resolved_agent_id, duration_seconds, disposition, application_id, candidate:candidates(deleted_at)");
+      if (range.from) q = q.gte("call_time", range.from);
+      if (range.to) q = q.lte("call_time", range.to);
+      return q.returns<RawCall[]>();
+    })(),
     recruiterRoleFilter(supabase),
   ]);
   if (callsResult.error) throw callsResult.error;

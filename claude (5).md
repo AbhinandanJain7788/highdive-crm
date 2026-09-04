@@ -1351,3 +1351,54 @@ Interactions, Assignment (including a live round_robin-vs-load_balanced distinct
 re-test, reverted after), Call Logs, Follow-Ups/Calendar/Recurring, Rechurn, Team, and the
 Phase-7-wired Settings/Notifications/WhatsApp/Request Reports surface — came back ✅,
 matching direct DB queries everywhere a number was checkable.
+
+## Follow-up pass (2026-09-04) — fixed everything from the "incomplete" list
+
+Per your explicit instruction ("correct all these... check each filter should be proper
+working"), with one exception you named directly: the live `calls` table **is** connected
+to the real Android app and working — Phase 8 Step 2's "test/staging only" answer is
+superseded by this; nothing further needed there.
+
+- **Activity-log retention — decision recorded, not deferred silently.** You explicitly
+  chose "no automatic deletion for now, revisit later" rather than a number — `activity_logs`
+  has no retention job, by design, until that decision changes.
+- **`GET/POST /api/applications` — built.** List (search by candidate name/phone, filter by
+  status/jobId, paginated) and create (an application for an *already-existing* candidate
+  against a job — the Ananya Sharma multi-application case, previously only ever created
+  directly in SQL). Gated on `manage_candidates`, same as `PATCH /api/applications/:id`.
+  Live-verified: a duplicate (candidate+job pair that already exists) returns `409`; a
+  genuinely new one creates correctly with the job's own opening stage resolved, not
+  hardcoded; cleaned up after.
+- **All 7 Phase 9 findings fixed and live-verified** — full detail and before/after in
+  `filter-audit-findings.md`'s updated summary table:
+  - Allocations "Selected Users" — real multi-select recruiter filter (`assignToIds`),
+    reusing the existing `CheckboxListPopover`.
+  - Jobs/Clients/Recruiters — search added to all 3 (the backend already supported it on
+    Jobs/Clients; Recruiters' `listRecruiterUsers` gained it). Clients also gained the
+    pagination controls Jobs already had but Clients was missing.
+  - Reports — a from/to date range, applied consistently to Pipeline Funnel, Call
+    Outcomes, and Calls by Recruiter alike.
+  - Analytics Conversion Funnel — a pipeline-template selector (`getPipelineFunnel`
+    renamed from `getDefaultPipelineFunnel`, now takes an optional `templateId`) rather
+    than inventing a stage-name mapping between the two templates' different
+    vocabularies — each template's funnel renders on its own.
+  - Analytics "Customers By (Select Field)" — real grouping by Source/Status/Recruiter/Job
+    over the same "one candidate, most-recent-application" set every other widget uses
+    (`GET /api/analytics/customers-by`, new). This reverses Phase 6's "keep as static
+    empty state" decision — per your explicit instruction this pass to make it work.
+  - Analytics User Performance tab — a real, uncapped table reusing the existing Top-5
+    call/agent aggregation with its cap lifted (`GET /api/analytics/top-users?all=true`).
+    Also reverses a prior "coming soon" sign-off, same as Customers By.
+  - Team Live Status — migration `0031_users_device_settings` added real
+    `call_tracking_enabled`/`call_recording_enabled`/`app_version` columns on `users`
+    (CRM-side settings, not live Android telemetry — claude.md still forbids touching the
+    Android app itself), defaulted to match the prior hardcoded display values. All 4
+    filters (Status/Call Tracking/Call Recording/Version) now query real columns; the
+    "Status: Select Filters" dropdown had the same decorative problem but wasn't
+    separately flagged in the original audit — fixed too.
+- **`npx tsc --noEmit` and targeted `eslint` clean** on every touched file.
+- **Self-audit run against the live dev server** (port 3005): every fix above was
+  exercised with a real HTTP request and, where a number could be independently checked,
+  a direct DB comparison — not re-read from code. The Team Live Status column filters were
+  specifically tested by flipping one real user's `app_version`/`call_tracking_enabled` in
+  the DB and confirming each filter isolated exactly that user, then reverting.

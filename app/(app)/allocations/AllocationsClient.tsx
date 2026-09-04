@@ -59,6 +59,37 @@ export default function AllocationsClient({
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [userScope, setUserScope] = useState<UserScope>("selected");
 
+  // "Selected Users" previously applied no filtering at all — just the dropdown label
+  // for "not Common Pool" (Phase 9 finding). This is the real per-recruiter narrowing:
+  // an explicit multi-select of specific users, empty by default (= everyone, same as
+  // before), applied only in "selected" scope.
+  const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [openUsersPopover, setOpenUsersPopover] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/team?status=active")
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => {
+        if (cancelled) return;
+        setTeamOptions((body.data ?? []).map((u: { id: string; name: string }) => ({ id: u.id, label: u.name })));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleSelectedUser(id: string) {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
   const [appliedDateRange, setAppliedDateRange] = useState<DateRange | null>(null);
 
@@ -88,7 +119,7 @@ export default function AllocationsClient({
   useEffect(() => {
     if (firstRender.current) return;
     setPage(1);
-  }, [bucket, search, range, appliedDateRange, statusKey, userScope, sortKey, pageSize]);
+  }, [bucket, search, range, appliedDateRange, statusKey, userScope, selectedUserIds, sortKey, pageSize]);
 
   useEffect(() => {
     if (firstRender.current) {
@@ -101,6 +132,7 @@ export default function AllocationsClient({
     if (search.trim()) params.set("search", search.trim());
     if (statusKey) params.set("status", statusKey);
     if (userScope === "pool") params.set("pool", "true");
+    else if (selectedUserIds.size > 0) params.set("assignToIds", [...selectedUserIds].join(","));
     params.set("sort", sortKey);
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
@@ -141,7 +173,7 @@ export default function AllocationsClient({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [bucket, search, statusKey, userScope, sortKey, page, pageSize, range, appliedDateRange]);
+  }, [bucket, search, statusKey, userScope, selectedUserIds, sortKey, page, pageSize, range, appliedDateRange]);
 
   const activeFilterCount = selectedStatuses.size > 0 ? 1 : 0;
   const statusOptions = statusOptionsFor(statusMode);
@@ -250,6 +282,27 @@ export default function AllocationsClient({
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <UserScopeDropdown value={userScope} onChange={setUserScope} />
+
+        {userScope === "selected" && (
+          <div style={{ position: "relative" }}>
+            <div
+              onClick={() => setOpenUsersPopover((v) => !v)}
+              style={{ ...selectStyle, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minWidth: 150 }}
+            >
+              {selectedUserIds.size > 0 ? `${selectedUserIds.size} user${selectedUserIds.size > 1 ? "s" : ""}` : "All Users"}
+              <span style={{ marginLeft: "auto", fontSize: 10, color: "#9AA1AC" }}>▾</span>
+            </div>
+            {openUsersPopover && (
+              <CheckboxListPopover
+                options={teamOptions}
+                selected={selectedUserIds}
+                onToggle={toggleSelectedUser}
+                onClose={() => setOpenUsersPopover(false)}
+                searchPlaceholder="Search users"
+              />
+            )}
+          </div>
+        )}
 
         <IconButton label="Filter" onClick={() => setShowMoreFilters(true)} active={activeFilterCount > 0}>
           <FunnelIcon />

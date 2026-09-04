@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { formatDisplayDate } from "@/lib/format";
+import { escapeFilterValue, formatDisplayDate } from "@/lib/format";
 
 type LiveStatus = Database["public"]["Enums"]["live_status"];
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
@@ -104,17 +104,21 @@ function conversionPct(assigned: number, converted: number): number {
 
 async function listRecruiterUsers(
   supabase: SupabaseClient<Database>,
-  id?: string
+  options: { id?: string; search?: string } = {}
 ): Promise<RawRecruiter[]> {
   let query = supabase.from("users").select(RECRUITER_COLUMNS).eq("status", "active");
 
-  if (id) {
-    query = query.eq("id", id);
+  if (options.id) {
+    query = query.eq("id", options.id);
   } else {
     const adminRoleIds = await recruiterRoleFilter(supabase);
     if (adminRoleIds.length) {
       query = query.or(`role_id.is.null,role_id.not.in.(${adminRoleIds.join(",")})`);
     }
+  }
+  if (options.search?.trim()) {
+    const term = escapeFilterValue(options.search);
+    if (term) query = query.or(`name.ilike.%${term}%,email.ilike.%${term}%`);
   }
 
   const { data, error } = await query.order("name", { ascending: true }).returns<RawRecruiter[]>();
@@ -173,8 +177,11 @@ function toRecruiterRow(u: RawRecruiter, assignments: RawAssignment[]): Recruite
   };
 }
 
-export async function getRecruiterRows(supabase: SupabaseClient<Database>): Promise<RecruiterRow[]> {
-  const users = await listRecruiterUsers(supabase);
+export async function getRecruiterRows(
+  supabase: SupabaseClient<Database>,
+  options: { search?: string } = {}
+): Promise<RecruiterRow[]> {
+  const users = await listRecruiterUsers(supabase, options);
   const byRecruiter = await assignmentsByRecruiter(
     supabase,
     users.map((u) => u.id)
@@ -186,7 +193,7 @@ export async function getRecruiterDetail(
   supabase: SupabaseClient<Database>,
   id: string
 ): Promise<RecruiterDetail | null> {
-  const [user] = await listRecruiterUsers(supabase, id);
+  const [user] = await listRecruiterUsers(supabase, { id });
   if (!user) return null;
 
   const assignments = (await assignmentsByRecruiter(supabase, [id])).get(id) ?? [];

@@ -1,10 +1,10 @@
 // Types shared by the server query module and client components — free of
 // `server-only`/Supabase imports, same reason as lib/allocations.shared.ts.
 import type { AnalyticsRangeKey } from "@/lib/dateRanges";
-import type { BucketCount, FunnelStage } from "@/lib/pipeline";
+import type { BucketCount, FunnelStage, PipelineTemplateOption } from "@/lib/pipeline";
 
 export type { AnalyticsRangeKey } from "@/lib/dateRanges";
-export type { BucketCount, FunnelStage } from "@/lib/pipeline";
+export type { BucketCount, FunnelStage, PipelineTemplateOption } from "@/lib/pipeline";
 
 export type CallTrendPoint = {
   label: string;
@@ -50,4 +50,14 @@ export type AnalyticsOverall = {
   talkTime: TalkTimeTrend;
   customerStages: { total: number; stages: BucketCount[] };
   conversionFunnel: FunnelStage[];
+  pipelineTemplates: PipelineTemplateOption[];
+  activeTemplateId: string | null;
 };
+
+// "Customers By (Select Field)" — Phase 9 fix (was a permanent static empty state).
+// Groups the same "one row per candidate, most recent application" set every other
+// Analytics/Dashboard widget uses (claude.md Phase 3 Open Question 5) by one of 4
+// fields; "source" is the only one that comes off `candidates` directly rather than
+// its most-recent application.
+export type CustomersByField = "source" | "status" | "recruiter" | "job";
+export type CustomersByGroup = { label: string; count: number };

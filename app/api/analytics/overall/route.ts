@@ -16,10 +16,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rangeParam = searchParams.get("range");
   const range: AnalyticsRangeKey = isAnalyticsRangeKey(rangeParam) ? rangeParam : "today";
+  const templateId = searchParams.get("templateId") ?? undefined;
 
   const supabase = await createClient();
   try {
-    const data = await getAnalyticsOverall(supabase, guard, range);
+    const data = await getAnalyticsOverall(supabase, guard, range, templateId);
     return NextResponse.json({ data });
   } catch (err) {
     console.error("GET /api/analytics/overall failed", err);

@@ -1163,7 +1163,10 @@ export type Database = {
       users: {
         Row: {
           add_ons: string | null
+          app_version: string
           avatar_color: string | null
+          call_recording_enabled: boolean
+          call_tracking_enabled: boolean
           created_at: string
           email: string
           id: string
@@ -1179,7 +1182,10 @@ export type Database = {
         }
         Insert: {
           add_ons?: string | null
+          app_version?: string
           avatar_color?: string | null
+          call_recording_enabled?: boolean
+          call_tracking_enabled?: boolean
           created_at?: string
           email: string
           id: string
@@ -1195,7 +1201,10 @@ export type Database = {
         }
         Update: {
           add_ons?: string | null
+          app_version?: string
           avatar_color?: string | null
+          call_recording_enabled?: boolean
+          call_tracking_enabled?: boolean
           created_at?: string
           email?: string
           id?: string
@@ -1384,7 +1393,9 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      auth_has_permission: { Args: { perm_key: string }; Returns: boolean }
+      auth_holds_application: { Args: { app_id: string }; Returns: boolean }
+      auth_holds_candidate: { Args: { cand_id: string }; Returns: boolean }
     }
     Enums: {
       application_status:

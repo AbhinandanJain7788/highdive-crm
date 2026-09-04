@@ -13,14 +13,15 @@ const gridTemplateColumns = "2fr 1.4fr 1fr 0.9fr 1fr 1fr";
 export default async function JobsListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }) {
-  const { page } = await searchParams;
+  const { page, search } = await searchParams;
   const pageNumber = Math.max(1, Number(page) || 1);
   const from = (pageNumber - 1) * DEFAULT_PAGE_SIZE;
 
   const supabase = await createClient();
   const { rows, total } = await getJobRows(supabase, {
+    search,
     pagination: { page: pageNumber, pageSize: DEFAULT_PAGE_SIZE, from, to: from + DEFAULT_PAGE_SIZE - 1 },
   });
 
@@ -28,7 +29,24 @@ export default async function JobsListPage({
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{total} Jobs</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>{total} Jobs</div>
+        <form method="get" style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", border: "1px solid #D9DCE3", borderRadius: 7, padding: "8px 12px", maxWidth: 260 }}>
+          <input
+            type="text"
+            name="search"
+            defaultValue={search ?? ""}
+            placeholder="Search job title"
+            style={{ border: "none", outline: "none", fontSize: 13, color: "#1D2433", flex: 1, background: "transparent" }}
+          />
+          <button type="submit" style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0 }} aria-label="Search">
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <circle cx="6" cy="6" r="4.5" fill="none" stroke="#9AA1AC" strokeWidth="1.4" />
+              <line x1="9.5" y1="9.5" x2="13" y2="13" stroke="#9AA1AC" strokeWidth="1.4" />
+            </svg>
+          </button>
+        </form>
+      </div>
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
         <div
           style={{
@@ -92,7 +110,9 @@ export default async function JobsListPage({
           );
         })}
         {rows.length === 0 && (
-          <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>No jobs yet.</div>
+          <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>
+            {search ? "No jobs match your search." : "No jobs yet."}
+          </div>
         )}
       </div>
 
@@ -102,12 +122,12 @@ export default async function JobsListPage({
             Page {pageNumber} of {lastPage}
           </span>
           {pageNumber > 1 && (
-            <Link href={`/jobs?page=${pageNumber - 1}`} style={pagerStyle}>
+            <Link href={`/jobs?page=${pageNumber - 1}${search ? `&search=${encodeURIComponent(search)}` : ""}`} style={pagerStyle}>
               ← Prev
             </Link>
           )}
           {pageNumber < lastPage && (
-            <Link href={`/jobs?page=${pageNumber + 1}`} style={pagerStyle}>
+            <Link href={`/jobs?page=${pageNumber + 1}${search ? `&search=${encodeURIComponent(search)}` : ""}`} style={pagerStyle}>
               Next →
             </Link>
           )}

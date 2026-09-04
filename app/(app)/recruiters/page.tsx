@@ -6,7 +6,12 @@ import { liveStatusColors, liveStatusLabels } from "@/lib/mock";
 
 const gridTemplateColumns = "2fr 1.2fr 1fr 1fr 1fr";
 
-export default async function RecruitersListPage() {
+export default async function RecruitersListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string }>;
+}) {
+  const { search } = await searchParams;
   const profile = await getCurrentUserProfile();
 
   // RLS scopes `assignments` reads to the assignment's own recruiter, so without
@@ -31,11 +36,28 @@ export default async function RecruitersListPage() {
   }
 
   const supabase = await createClient();
-  const rows = await getRecruiterRows(supabase);
+  const rows = await getRecruiterRows(supabase, { search });
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{rows.length} Recruiters</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>{rows.length} Recruiters</div>
+        <form method="get" style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", border: "1px solid #D9DCE3", borderRadius: 7, padding: "8px 12px", maxWidth: 260 }}>
+          <input
+            type="text"
+            name="search"
+            defaultValue={search ?? ""}
+            placeholder="Search name or email"
+            style={{ border: "none", outline: "none", fontSize: 13, color: "#1D2433", flex: 1, background: "transparent" }}
+          />
+          <button type="submit" style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0 }} aria-label="Search">
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <circle cx="6" cy="6" r="4.5" fill="none" stroke="#9AA1AC" strokeWidth="1.4" />
+              <line x1="9.5" y1="9.5" x2="13" y2="13" stroke="#9AA1AC" strokeWidth="1.4" />
+            </svg>
+          </button>
+        </form>
+      </div>
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
         <div
           style={{

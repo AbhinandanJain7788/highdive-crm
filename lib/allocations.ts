@@ -24,6 +24,11 @@ export type AllocationListOptions = {
   // "Common Pool" (unassigned-only) vs "Selected Users" (no extra scoping) — mirrors
   // the UserScopeDropdown semantics already built for Candidates/Allocations.
   pool?: boolean;
+  // Real per-recruiter narrowing for the "Selected Users" scope — previously the
+  // dropdown's "Selected Users" option applied no filtering at all (Phase 9 finding).
+  // Ignored when `pool` is true (Common Pool is defined as assign_to IS NULL, which
+  // this would never match anyway).
+  assignToIds?: string[];
   sort?: "name-asc" | "name-desc" | "created-new" | "created-old";
   pagination: Pagination;
 };
@@ -69,6 +74,7 @@ function buildQuery(
   if (options.createdFrom) query = query.gte("created_on", options.createdFrom);
   if (options.createdTo) query = query.lte("created_on", options.createdTo);
   if (options.pool) query = query.is("assign_to", null);
+  else if (options.assignToIds?.length) query = query.in("assign_to", options.assignToIds);
 
   return query;
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AnalyticsOverall, TopUserRow, LoginAnalytics, AnalyticsRangeKey } from "@/lib/analytics.shared";
+import type { AnalyticsOverall, TopUserRow, LoginAnalytics, AnalyticsRangeKey, CustomersByField, CustomersByGroup } from "@/lib/analytics.shared";
+
+const CUSTOMERS_BY_FIELDS: { key: CustomersByField; label: string }[] = [
+  { key: "source", label: "Source" },
+  { key: "status", label: "Status" },
+  { key: "recruiter", label: "Recruiter" },
+  { key: "job", label: "Job" },
+];
 
 type AnalyticsTab = "overall" | "aiCall" | "userPerf";
 type CallTrendsMode = "overall" | "outbound" | "inbound";
@@ -51,6 +58,12 @@ export default function AnalyticsClient({
   const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>("overall");
   const [range, setRange] = useState<AnalyticsRangeKey>("today");
   const [callTrendsMode, setCallTrendsMode] = useState<CallTrendsMode>("overall");
+  const [templateId, setTemplateId] = useState<string | null>(initialOverall.activeTemplateId);
+  const [customersByField, setCustomersByField] = useState<CustomersByField | "">("");
+  const [customersBy, setCustomersBy] = useState<CustomersByGroup[]>([]);
+  const [customersByLoading, setCustomersByLoading] = useState(false);
+  const [allUsers, setAllUsers] = useState<TopUserRow[] | null>(null);
+  const [allUsersLoading, setAllUsersLoading] = useState(false);
 
   const [overall, setOverall] = useState<AnalyticsOverall>(initialOverall);
   const [topUsers, setTopUsers] = useState<TopUserRow[]>(initialTopUsers);
@@ -69,14 +82,16 @@ export default function AnalyticsClient({
       setLoading(true);
       setLoadError(null);
       try {
+        const templateParam = templateId ? `&templateId=${templateId}` : "";
         const [overallRes, topUsersRes, loginRes] = await Promise.all([
-          fetch(`/api/analytics/overall?range=${range}`, { signal: controller.signal }),
+          fetch(`/api/analytics/overall?range=${range}${templateParam}`, { signal: controller.signal }),
           fetch(`/api/analytics/top-users?range=${range}`, { signal: controller.signal }),
           fetch(`/api/analytics/login?range=${range}`, { signal: controller.signal }),
         ]);
         if (!overallRes.ok || !topUsersRes.ok || !loginRes.ok) throw new Error("Could not load analytics.");
         const [overallBody, topUsersBody, loginBody] = await Promise.all([overallRes.json(), topUsersRes.json(), loginRes.json()]);
         setOverall(overallBody.data);
+        if (!templateId) setTemplateId(overallBody.data.activeTemplateId);
         setTopUsers(topUsersBody.data);
         setLogin(loginBody.data);
       } catch (err) {
@@ -88,7 +103,38 @@ export default function AnalyticsClient({
       }
     })();
     return () => controller.abort();
-  }, [range]);
+  }, [range, templateId]);
+
+  useEffect(() => {
+    if (!customersByField) {
+      setCustomersBy([]);
+      return;
+    }
+    const controller = new AbortController();
+    setCustomersByLoading(true);
+    fetch(`/api/analytics/customers-by?range=${range}&field=${customersByField}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => setCustomersBy(body.data ?? []))
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") setCustomersBy([]);
+      })
+      .finally(() => setCustomersByLoading(false));
+    return () => controller.abort();
+  }, [customersByField, range]);
+
+  useEffect(() => {
+    if (analyticsTab !== "userPerf") return;
+    const controller = new AbortController();
+    setAllUsersLoading(true);
+    fetch(`/api/analytics/top-users?range=${range}&all=true`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => setAllUsers(body.data ?? []))
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") setAllUsers([]);
+      })
+      .finally(() => setAllUsersLoading(false));
+    return () => controller.abort();
+  }, [analyticsTab, range]);
 
   const analyticsTabStyle = (active: boolean): React.CSSProperties =>
     active ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" } : { color: "#4B5565" };
@@ -336,7 +382,20 @@ export default function AnalyticsClient({
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>CONVERSION FUNNEL</span>
               </div>
-              <div style={{ marginBottom: 18 }}>
+              <div style={{ marginBottom: 18, display: "flex", gap: 8 }}>
+                {overall.pipelineTemplates.length > 1 && (
+                  <select
+                    value={templateId ?? ""}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                    style={{ padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, color: "#4B5565", background: "#FFFFFF" }}
+                  >
+                    {overall.pipelineTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <RangeSelect value={range} onChange={setRange} />
               </div>
               {funnel.length === 0 ? (
@@ -366,21 +425,51 @@ export default function AnalyticsClient({
                   <InfoIcon />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <select style={{ padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, color: "#4B5565", background: "#FFFFFF" }}>
-                    <option>Select Field</option>
+                  <select
+                    value={customersByField}
+                    onChange={(e) => setCustomersByField(e.target.value as CustomersByField | "")}
+                    style={{ padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, color: "#4B5565", background: "#FFFFFF" }}
+                  >
+                    <option value="">Select Field</option>
+                    {CUSTOMERS_BY_FIELDS.map((f) => (
+                      <option key={f.key} value={f.key}>
+                        {f.label}
+                      </option>
+                    ))}
                   </select>
                   <RangeSelect value={range} onChange={setRange} />
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "30px 0" }}>
-                <svg width="60" height="60" viewBox="0 0 60 60">
-                  <rect x="8" y="20" width="26" height="34" rx="2" fill="none" stroke="#D9DCE3" strokeWidth="2" />
-                  <rect x="20" y="10" width="26" height="34" rx="2" fill="#FAFBFC" stroke="#D9DCE3" strokeWidth="2" />
-                  <circle cx="33" cy="20" r="5" fill="none" stroke="#FF9F80" strokeWidth="2" />
-                  <path d="M31 20l2 2 3-4" stroke="#FF9F80" strokeWidth="1.6" fill="none" />
-                </svg>
-                <div style={{ fontSize: 13, color: "#9AA1AC" }}>No data to display</div>
-              </div>
+              {!customersByField ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "30px 0" }}>
+                  <svg width="60" height="60" viewBox="0 0 60 60">
+                    <rect x="8" y="20" width="26" height="34" rx="2" fill="none" stroke="#D9DCE3" strokeWidth="2" />
+                    <rect x="20" y="10" width="26" height="34" rx="2" fill="#FAFBFC" stroke="#D9DCE3" strokeWidth="2" />
+                    <circle cx="33" cy="20" r="5" fill="none" stroke="#FF9F80" strokeWidth="2" />
+                    <path d="M31 20l2 2 3-4" stroke="#FF9F80" strokeWidth="1.6" fill="none" />
+                  </svg>
+                  <div style={{ fontSize: 13, color: "#9AA1AC" }}>No data to display</div>
+                </div>
+              ) : customersByLoading ? (
+                <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>Loading…</div>
+              ) : customersBy.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>No candidates in this range.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(() => {
+                    const max = Math.max(1, ...customersBy.map((g) => g.count));
+                    return customersBy.map((g) => (
+                      <div key={g.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ width: 120, fontSize: 12.5, color: "#4B5565", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.label}</span>
+                        <div style={{ flex: 1, height: 10, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ height: "100%", background: "#2FB6C4", borderRadius: 4, width: `${Math.max(4, Math.round((g.count / max) * 100))}%` }} />
+                        </div>
+                        <span style={{ width: 26, textAlign: "right", fontSize: 12.5, fontWeight: 600, color: "#1D2433" }}>{g.count}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -392,8 +481,31 @@ export default function AnalyticsClient({
         </div>
       )}
       {analyticsTab === "userPerf" && (
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 60, textAlign: "center", fontSize: 13, color: "#9AA1AC" }}>
-          User Performance report coming soon.
+        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #EEF0F4" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>USER PERFORMANCE</span>
+            <RangeSelect value={range} onChange={setRange} small />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10, padding: "8px 20px", fontSize: 11.5, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", borderBottom: "1px solid #EEF0F4" }}>
+            <div>User</div>
+            <div>Total Calls</div>
+            <div>Outbound</div>
+            <div>Inbound</div>
+          </div>
+          {allUsersLoading ? (
+            <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>Loading…</div>
+          ) : (allUsers ?? []).length === 0 ? (
+            <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>No call activity in this range.</div>
+          ) : (
+            (allUsers ?? []).map((u) => (
+              <div key={u.userId} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10, alignItems: "center", padding: "10px 20px", borderBottom: "1px solid #F4F5F8" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>{u.name}</div>
+                <div style={{ fontSize: 13, color: "#1D2433" }}>{u.total}</div>
+                <div style={{ fontSize: 13, color: "#4B5565" }}>{u.total - u.inbound}</div>
+                <div style={{ fontSize: 13, color: "#4B5565" }}>{u.inbound}</div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

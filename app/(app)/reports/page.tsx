@@ -8,7 +8,12 @@ import { fmtDuration } from "@/lib/mock";
 // (claude.md's API table marks GET /api/reports "manager+"; same reasoning as
 // /recruiters — Phase 3 As-Built Notes) rather than a dedicated permission key, since
 // none exists for Reports specifically.
-export default async function ReportsPage() {
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
   const profile = await getCurrentUserProfile();
   if (!profile?.permissions.includes("view_all_records")) {
     return (
@@ -19,13 +24,44 @@ export default async function ReportsPage() {
   }
 
   const supabase = await createClient();
-  const data = await getReportsData(supabase);
+  const data = await getReportsData(supabase, {
+    from: from ? new Date(from).toISOString() : undefined,
+    to: to ? new Date(`${to}T23:59:59.999Z`).toISOString() : undefined,
+  });
   const funnelMax = Math.max(1, ...data.pipelineFunnel.map((s) => s.count));
   const outcomesMax = Math.max(1, ...data.callOutcomes.map((d) => d.count));
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>Reports</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>Reports</div>
+        <form method="get" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <input
+            type="date"
+            name="from"
+            defaultValue={from ?? ""}
+            style={{ padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 12.5, color: "#1D2433" }}
+          />
+          <span style={{ fontSize: 12.5, color: "#9AA1AC" }}>to</span>
+          <input
+            type="date"
+            name="to"
+            defaultValue={to ?? ""}
+            style={{ padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 12.5, color: "#1D2433" }}
+          />
+          <button
+            type="submit"
+            style={{ background: "linear-gradient(180deg,#FF7A50,#FF5C35)", border: "none", color: "#FFFFFF", borderRadius: 7, padding: "8px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+          >
+            Apply
+          </button>
+          {(from || to) && (
+            <a href="/reports" style={{ fontSize: 12.5, fontWeight: 600, color: "#1A56DB", textDecoration: "none" }}>
+              Clear
+            </a>
+          )}
+        </form>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
         <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Pipeline Funnel</div>

@@ -28,6 +28,9 @@ export type LiveStatusRow = {
   liveStatusSince: string | null;
   role: { id: string; name: string } | null;
   process: { id: string; name: string } | null;
+  callTrackingEnabled: boolean;
+  callRecordingEnabled: boolean;
+  appVersion: string;
 };
 
 // `reports_to` is a self-referencing FK on `users` (users -> users). PostgREST
@@ -43,6 +46,7 @@ const TEAM_SELECT = `
 
 const LIVE_STATUS_SELECT = `
   id, name, avatar_color, live_status, live_status_since,
+  call_tracking_enabled, call_recording_enabled, app_version,
   role:roles!users_role_id_fkey(id, name),
   process:processes!users_process_id_fkey(id, name)
 `;
@@ -71,6 +75,9 @@ type RawLiveStatusRow = {
   avatar_color: string | null;
   live_status: LiveStatus | null;
   live_status_since: string | null;
+  call_tracking_enabled: boolean;
+  call_recording_enabled: boolean;
+  app_version: string;
   role: { id: string; name: string } | null;
   process: { id: string; name: string } | null;
 };
@@ -101,12 +108,17 @@ export async function getTeamRows(
   }));
 }
 
-export async function getLiveStatusRows(supabase: SupabaseClient<Database>): Promise<LiveStatusRow[]> {
-  const { data, error } = await supabase
-    .from("users")
-    .select(LIVE_STATUS_SELECT)
-    .order("name", { ascending: true })
-    .returns<RawLiveStatusRow[]>();
+export async function getLiveStatusRows(
+  supabase: SupabaseClient<Database>,
+  options: { liveStatus?: LiveStatus; callTracking?: boolean; callRecording?: boolean; version?: string } = {}
+): Promise<LiveStatusRow[]> {
+  let query = supabase.from("users").select(LIVE_STATUS_SELECT).order("name", { ascending: true });
+  if (options.liveStatus) query = query.eq("live_status", options.liveStatus);
+  if (options.callTracking !== undefined) query = query.eq("call_tracking_enabled", options.callTracking);
+  if (options.callRecording !== undefined) query = query.eq("call_recording_enabled", options.callRecording);
+  if (options.version) query = query.eq("app_version", options.version);
+
+  const { data, error } = await query.returns<RawLiveStatusRow[]>();
   if (error) throw error;
 
   return (data ?? []).map((u) => ({
@@ -115,6 +127,9 @@ export async function getLiveStatusRows(supabase: SupabaseClient<Database>): Pro
     avatarColor: u.avatar_color,
     liveStatus: u.live_status,
     liveStatusSince: u.live_status_since,
+    callTrackingEnabled: u.call_tracking_enabled,
+    callRecordingEnabled: u.call_recording_enabled,
+    appVersion: u.app_version,
     role: u.role ? { id: u.role.id, name: u.role.name } : null,
     process: u.process ? { id: u.process.id, name: u.process.name } : null,
   }));

@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { liveStatusColors, liveStatusLabels } from "@/lib/mock";
 import type { LiveStatusRow } from "@/lib/team";
+import { formatSinceClient } from "./formatSinceClient";
 
 type Row = LiveStatusRow & { sinceLabel: string };
 type SortOrder = "Name: A-Z" | "Name: Z-A";
+type LiveStatusValue = LiveStatusRow["liveStatus"];
 
 // The source prototype's board has 7 fixed status buckets (Idle / On Call / Wrapping up /
 // On Break / Checked Out / Logged Out / Hasn't Logged in), but the `live_status` enum only
 // carries 4 real values (idle / on_call / on_break / offline). We map the 4 real values onto
 // their closest bucket (offline -> "Logged Out") and keep the other 3 buckets at 0, exactly
 // as the source itself does for buckets its own seed never populates. See ui-gaps.md item 16.
-const BUCKET_DEFS: { label: string; dotColor: string; barColor: string; userLiveStatus: Row["liveStatus"] | null }[] = [
+const BUCKET_DEFS: { label: string; dotColor: string; barColor: string; userLiveStatus: LiveStatusValue | null }[] = [
   { label: "Idle", dotColor: "#D97706", barColor: "#D9DCE3", userLiveStatus: "idle" },
   { label: "On Call", dotColor: "#16A34A", barColor: "#8FD9A8", userLiveStatus: "on_call" },
   { label: "Wrapping up", dotColor: "#2563EB", barColor: "#B7CCF7", userLiveStatus: null },
@@ -22,39 +24,82 @@ const BUCKET_DEFS: { label: string; dotColor: string; barColor: string; userLive
   { label: "Hasn't Logged in", dotColor: "#C0392B", barColor: "#F4C6C0", userLiveStatus: null },
 ];
 
-// Call Tracking / Call Recording / Version aren't part of the users schema — the source
-// hard-codes these per member and no such columns exist on `users`. Every row is defaulted
-// to the source's common case (Enabled / Enabled / v8.2.1), an intentional, disclosed gap
-// (ui-gaps.md item 16) rather than invented schema.
+const STATUS_OPTIONS: { value: LiveStatusValue; label: string }[] = [
+  { value: "on_call", label: "On Call" },
+  { value: "idle", label: "Idle" },
+  { value: "on_break", label: "On Break" },
+  { value: "offline", label: "Logged Out" },
+];
+
+// Phase 9 fix: Call Tracking / Call Recording / Version were decorative — every row
+// hardcoded to the source's common case (Enabled/Enabled/v8.2.1), no backing columns.
+// migration 0031 added real `users.call_tracking_enabled/call_recording_enabled/
+// app_version` columns (CRM-side settings, not live Android telemetry — claude.md
+// forbids touching the Android app) and these filters now query them for real.
 export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row[] }) {
   const [teamStatusSearch, setTeamStatusSearch] = useState("");
   const [teamStatusSort, setTeamStatusSort] = useState<SortOrder>("Name: A-Z");
+  const [statusFilter, setStatusFilter] = useState<Exclude<LiveStatusValue, null> | "">("");
+  const [trackingFilter, setTrackingFilter] = useState<"" | "true" | "false">("");
+  const [recordingFilter, setRecordingFilter] = useState<"" | "true" | "false">("");
+  const [versionFilter, setVersionFilter] = useState("");
 
-  const tlTotal = initialRows.length || 1;
+  const [rows, setRows] = useState<LiveStatusRow[]>(initialRows);
+  const [loading, setLoading] = useState(false);
+  const versionOptions = [...new Set(initialRows.map((r) => r.appVersion))].sort();
+
+  const firstRender = useState(() => ({ current: true }))[0];
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("status", statusFilter);
+    if (trackingFilter) params.set("callTracking", trackingFilter);
+    if (recordingFilter) params.set("callRecording", recordingFilter);
+    if (versionFilter) params.set("version", versionFilter);
+
+    setLoading(true);
+    fetch(`/api/team/live-status?${params.toString()}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => setRows(body.data ?? []))
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") setRows([]);
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [statusFilter, trackingFilter, recordingFilter, versionFilter, firstRender]);
+
+  const tlTotal = rows.length || 1;
   const liveStatusBuckets = BUCKET_DEFS.map((b) => {
-    const count = b.userLiveStatus ? initialRows.filter((u) => u.liveStatus === b.userLiveStatus).length : 0;
+    const count = b.userLiveStatus ? rows.filter((u) => u.liveStatus === b.userLiveStatus).length : 0;
     const barWidth = b.userLiveStatus ? `${Math.max(4, Math.round((count / tlTotal) * 100))}%` : "4%";
     return { ...b, count, barWidth };
   });
 
   const tlq = teamStatusSearch.trim().toLowerCase();
-  const teamLiveRows = initialRows
+  const teamLiveRows = rows
     .filter((m) => !tlq || m.name.toLowerCase().includes(tlq))
     .map((m) => ({
       ...m,
       avatarLetter: m.name.charAt(0).toUpperCase(),
       roleLabel: m.role?.name ?? "--",
-      trackLabel: "Enabled",
-      trackBg: "#E6F4EA",
-      trackColor: "#1E7F43",
-      recLabel: "Enabled",
-      recBg: "#E6F4EA",
-      recColor: "#1E7F43",
-      version: "v8.2.1",
+      trackLabel: m.callTrackingEnabled ? "Enabled" : "Disabled",
+      trackBg: m.callTrackingEnabled ? "#E6F4EA" : "#FDECEC",
+      trackColor: m.callTrackingEnabled ? "#1E7F43" : "#C0392B",
+      recLabel: m.callRecordingEnabled ? "Enabled" : "Disabled",
+      recBg: m.callRecordingEnabled ? "#E6F4EA" : "#FDECEC",
+      recColor: m.callRecordingEnabled ? "#1E7F43" : "#C0392B",
+      version: m.appVersion,
       liveLabel: m.liveStatus ? liveStatusLabels[m.liveStatus] : "--",
       liveColor: m.liveStatus ? liveStatusColors[m.liveStatus] : "#9AA1AC",
+      sinceLabel: formatSinceClient(m.liveStatusSince),
     }))
     .sort((a, b) => (teamStatusSort === "Name: Z-A" ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name)));
+
+  const selectStyle: React.CSSProperties = { padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF" };
 
   return (
     <div>
@@ -104,110 +149,52 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
                 <line x1="9.5" y1="9.5" x2="13" y2="13" stroke="#9AA1AC" strokeWidth="1.4" />
               </svg>
             </div>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 7,
-                border: "1px solid #E7E9EE",
-                background: "#FFFFFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 16 16">
-                <path d="M13.5 8A5.5 5.5 0 113.6 4.4M13.5 8V3.5M13.5 8H9" fill="none" stroke="#4B5565" strokeWidth="1.4" />
-              </svg>
-            </div>
+            {loading && <span style={{ fontSize: 12, color: "#9AA1AC" }}>Loading…</span>}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
             <select
-              style={{ padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF", minWidth: 180 }}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as Exclude<LiveStatusValue, null> | "")}
+              style={{ ...selectStyle, minWidth: 180 }}
             >
-              <option>Status: Select Filters</option>
+              <option value="">Status: Select Filters</option>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value ?? ""}>
+                  {o.label}
+                </option>
+              ))}
             </select>
-            <select
-              style={{ padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF", minWidth: 160 }}
-            >
-              <option>Call Tracking: Any</option>
+            <select value={trackingFilter} onChange={(e) => setTrackingFilter(e.target.value as "" | "true" | "false")} style={{ ...selectStyle, minWidth: 160 }}>
+              <option value="">Call Tracking: Any</option>
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
             </select>
-            <select
-              style={{ padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF", minWidth: 170 }}
-            >
-              <option>Call Recording: Any</option>
+            <select value={recordingFilter} onChange={(e) => setRecordingFilter(e.target.value as "" | "true" | "false")} style={{ ...selectStyle, minWidth: 170 }}>
+              <option value="">Call Recording: Any</option>
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
             </select>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-            <select
-              style={{ padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF", minWidth: 130 }}
-            >
-              <option>Version: Any</option>
+            <select value={versionFilter} onChange={(e) => setVersionFilter(e.target.value)} style={{ ...selectStyle, minWidth: 130 }}>
+              <option value="">Version: Any</option>
+              {versionOptions.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
             <span style={{ fontSize: 13, color: "#9AA1AC" }}>Sort by</span>
             <select
               value={teamStatusSort}
               onChange={(e) => setTeamStatusSort(e.target.value as SortOrder)}
-              style={{ padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF", minWidth: 130 }}
+              style={{ ...selectStyle, minWidth: 130 }}
             >
               <option value="Name: A-Z">Name: A-Z</option>
               <option value="Name: Z-A">Name: Z-A</option>
             </select>
-            <div
-              style={{
-                position: "relative",
-                width: 38,
-                height: 38,
-                borderRadius: 7,
-                border: "1px solid #E7E9EE",
-                background: "#FFFFFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16">
-                <circle cx="5.5" cy="5.5" r="2.4" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-                <circle cx="11" cy="6.5" r="1.8" fill="none" stroke="#4B5565" strokeWidth="1.2" />
-              </svg>
-              <div
-                style={{
-                  position: "absolute",
-                  top: -7,
-                  right: -7,
-                  background: "#FF5C35",
-                  color: "#FFFFFF",
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  borderRadius: 8,
-                  padding: "1px 5px",
-                }}
-              >
-                11
-              </div>
-            </div>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 7,
-                border: "1px solid #E7E9EE",
-                background: "#FFFFFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 16 16">
-                <path d="M8 1.5v9M4.5 7l3.5 3.5L11.5 7" fill="none" stroke="#4B5565" strokeWidth="1.3" />
-                <line x1="2" y1="13.5" x2="14" y2="13.5" stroke="#4B5565" strokeWidth="1.3" />
-              </svg>
-            </div>
           </div>
 
           <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
@@ -284,6 +271,9 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
                 </div>
               </div>
             ))}
+            {teamLiveRows.length === 0 && (
+              <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "30px 0" }}>No team members match these filters.</div>
+            )}
           </div>
         </div>
       </div>

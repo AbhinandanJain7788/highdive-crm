@@ -1,5 +1,9 @@
 # Phase 9 — Filter Audit Findings
 
+> **Update (2026-09-04, follow-up pass):** every non-✅ item below except the two
+> intentional placeholders has since been fixed and live-verified. See the "Fixed"
+> callouts inline and the summary table at the bottom for the current state.
+
 Method: for each page below, filters were tested against the live dev server (real HTTP requests to the API, cross-checked against direct Supabase queries where a numeric result could be independently verified) rather than by reading code alone. Client-only interaction state (checkbox live-counts, tab-switch animations, "+n More" chip expansion) that has no server round-trip is noted as code-reviewed rather than click-tested, since this session had API/DB access but no browser.
 
 Scale: ✅ Works · ⚠️ Partially works · ❌ Broken · 🚫 Not implemented (renders but does nothing)
@@ -25,14 +29,14 @@ Scale: ✅ Works · ⚠️ Partially works · ❌ Broken · 🚫 Not implemented
 - ✅ Date range — `2026-08-30..08-31` → 5, matches a direct `v_allocations` count exactly.
 - ✅ Status filter — `attempted`+`contacted` → 2, matches direct DB count exactly.
 - ✅ Pool scope (Common Pool) — 5, matches unassigned count.
-- ⚠️ **"Selected Users" filter — mislabeled, not a real per-user filter.** The `UserScopeDropdown` only toggles between "Common Pool" (`pool=true`) and a default "Selected Users" state that applies **no additional filtering at all** — there is no actual user-picker anywhere in the code (`lib/allocations.ts`'s own comment confirms: "'Selected Users' (no extra scoping)"). The label implies a multi-select of specific recruiters; it doesn't do that.
+- ✅ **Fixed.** "Selected Users" now opens a real multi-select recruiter picker (reusing the existing `CheckboxListPopover`), wired to a new `assignToIds` param on `GET /api/allocations` / `lib/allocations.ts`. Live-verified: filtering to one recruiter narrowed 4 attempted allocations to exactly the 2 belonging to that recruiter.
 
 ## Interactions
 - ✅ Status filter, date range, pagination — all narrow correctly.
 - ✅ "Interacted on" sort — confirmed reading `max(call_time)`, not `created_at` (code comment + live order matches: Sep 1 → Aug 28 → Aug 28 → Aug 26).
 
 ## Jobs / Clients / Recruiters
-- 🚫 **No search or sort control exists on any of these 3 screens** — confirmed by reading the live page components (`jobs/page.tsx`, `clients/page.tsx`, `recruiters/page.tsx`): only a `page` param for pagination. Not a regression — these were never documented with filters and none were ever built.
+- ✅ **Fixed.** Added a search box to all 3 screens (`getJobRows`/`getClientRows` already supported a `search` option server-side, just never exposed in the UI; `getRecruiterRows`/`listRecruiterUsers` gained one). Clients also gained the pagination controls Jobs already had but Clients was missing. Live-verified: `?search=Backend` on Jobs, `?search=Bluepeak` on Clients, `?search=Ayesha` on Recruiters each returned only the matching row. Sort controls were not added — no sort key beyond the existing `created_at desc` default was ever specified for these screens.
 - ✅ Pagination itself renders correctly on all 3 (server-rendered, 200 OK).
 
 ## Assignment
@@ -45,7 +49,7 @@ Scale: ✅ Works · ⚠️ Partially works · ❌ Broken · 🚫 Not implemented
 
 ## Reports
 - ✅ Pipeline Funnel, Call Outcomes, Calls by Recruiter — all three match direct DB queries exactly (Ayesha: 2 total/1 connected/284s avg; Suresh: 1/1/142s; unattributed: 1) — no drift since Phase 6.
-- 🚫 **No date range or filter control exists on this screen at all** — confirmed by reading `reports/page.tsx`. The checkpoint asking whether such a control "narrows all three sections consistently" doesn't apply; there is nothing to narrow with.
+- ✅ **Fixed.** Added a from/to date range control, applied consistently to all three sections (`getReportsData` now takes a `{from, to}` range, passed through to the pipeline funnel query and the calls query both) — satisfies the checkpoint's own "narrows all three sections consistently" wording. Live-verified: a narrow out-of-range window (2020-01-01..02) correctly zeroed out Call Outcomes while the unfiltered baseline still showed 3 calls.
 
 ## Call Logs
 - ✅ Direction filter (outbound=3, inbound=0), disposition filter (`interested`→1), connected/not-connected (`connected=true`→2, `false`→1, sums to total) all correct.
@@ -63,9 +67,9 @@ Scale: ✅ Works · ⚠️ Partially works · ❌ Broken · 🚫 Not implemented
 - ✅ Login Analytics — real computed duration from paired login/logout `activity_logs` rows; Wrap-up/Break/Idle correctly show `"--"` (no backing history table, documented).
 - ✅ Top 5 User Performances — 2 rows (correct: only 2 agents have any calls), correctly fewer than 5.
 - ✅ Customer Stages — percentages sum to ~100% (21+50+14+14=99, rounding), no NaN.
-- ⚠️ **Conversion Funnel only covers the Default Pipeline template, not both.** `getDefaultPipelineFunnel` (`lib/pipeline.ts`) explicitly queries only `pipeline_templates WHERE is_default = true` — applications on the 3 jobs using "Bulk Hiring Pipeline" (Phase 3's second template) are invisible to this chart. This is a **pre-existing, self-documented limitation** (the code's own comment cites it as "same documented, pre-existing limitation as ui-gaps.md item 15"), not a new regression — but it means the "verify against the now-confirmed 2 pipeline templates" checkpoint fails as literally worded: the funnel does not, in fact, cover both.
-- 🚫 "Customers By (Select Field)" — confirmed still the static empty state, per Phase 6's explicit instruction to leave it that way. No regression.
-- 🚫 User Performance tab — confirmed still "coming soon," as documented.
+- ✅ **Fixed.** Conversion Funnel gained a template selector (`getPipelineFunnel` now takes an optional `templateId`; `GET /api/analytics/overall` returns the full `pipelineTemplates` list plus `activeTemplateId`) instead of always reading only the Default Pipeline template. No 1:1 stage mapping was invented between the two templates' different vocabularies — each template's funnel is shown on its own, which is what the picker is for. Live-verified: Default Pipeline and Bulk Hiring Pipeline return genuinely different, correctly-scoped stage/count lists for the same range.
+- ✅ **Fixed.** "Customers By (Select Field)" now genuinely groups the same "one candidate, most-recent-application" set every other widget uses, by Source/Status/Recruiter/Job (`GET /api/analytics/customers-by`, new). Live-verified all 4 fields sum to the correct total (14) for the range.
+- ✅ **Fixed.** User Performance tab now shows a real, uncapped table (`GET /api/analytics/top-users?all=true`, reusing the existing Top-5 aggregation with its cap lifted rather than a second query). Live-verified: returns the same 2 real agents Top-5 already showed, just without the 5-row cap.
 - No new AI Call Analytics decision was made in Phase 8 (Open Question 2 was already resolved pre-Phase-7: permanently-disabled placeholder) — tab state matches that resolution.
 
 ## Rechurn
@@ -74,7 +78,7 @@ Scale: ✅ Works · ⚠️ Partially works · ❌ Broken · 🚫 Not implemented
 
 ## Team Live Status
 - ✅ A-Z / Z-A sort — genuinely implemented (`localeCompare`), not decorative.
-- 🚫 **Call Tracking, Call Recording, and Version filters are all decorative.** Each dropdown has exactly one option ("Any") and no `onChange` handler wired to any filtering logic — confirmed by reading `TeamLiveStatusClient.tsx`, whose own comment states these three fields "aren't part of the users schema." They render but do nothing.
+- ✅ **Fixed.** Migration `0031_users_device_settings` added real `users.call_tracking_enabled`/`call_recording_enabled`/`app_version` columns — CRM-side settings, not live Android telemetry (claude.md forbids touching the Android app) — defaulted to match the previous hardcoded display values so nothing changed until explicitly toggled. `GET /api/team/live-status` now takes real `status`/`callTracking`/`callRecording`/`version` params. Also fixed the "Status: Select Filters" dropdown, which had the same decorative problem but wasn't separately called out in the original audit. Live-verified: toggling one user's `app_version`/`call_tracking_enabled` in the DB and re-querying with each filter correctly isolated exactly that user, then reverted.
 - ✅ `abhi@gmail.com`'s null `live_status`/`live_status_since` renders cleanly (`liveStatus: null` from the API, page renders "Abhi" with no error) — the specific edge case the phase brief calls out by name.
 
 ## Team
@@ -97,15 +101,15 @@ Scale: ✅ Works · ⚠️ Partially works · ❌ Broken · 🚫 Not implemented
 
 ---
 
-## Summary of non-✅ items
-| Page | Item | Status |
-|---|---|---|
-| Allocations | "Selected Users" filter | ⚠️ mislabeled — no real per-user filter exists |
-| Jobs/Clients/Recruiters | Search/sort | 🚫 none exist |
-| Reports | Any filter | 🚫 none exist |
-| Analytics | Conversion Funnel | ⚠️ Default Pipeline only, excludes Bulk Hiring Pipeline's 3 jobs (pre-existing, documented) |
-| Analytics | "Customers By (Select Field)" | 🚫 intentional static empty state |
-| Analytics | User Performance tab | 🚫 intentional "coming soon" |
-| Team Live Status | Call Tracking / Call Recording / Version filters | 🚫 decorative, no backing schema |
+## Summary — original findings vs. current state
+| Page | Item | Original | Now |
+|---|---|---|---|
+| Allocations | "Selected Users" filter | ⚠️ mislabeled — no real per-user filter existed | ✅ Fixed — real multi-select |
+| Jobs/Clients/Recruiters | Search | 🚫 none existed | ✅ Fixed — search added to all 3 |
+| Reports | Date range filter | 🚫 none existed | ✅ Fixed — applies to all 3 sections |
+| Analytics | Conversion Funnel | ⚠️ Default Pipeline only | ✅ Fixed — template selector |
+| Analytics | "Customers By (Select Field)" | 🚫 intentional static empty state | ✅ Fixed — real grouping (per your instruction to build it, overriding the earlier "leave as placeholder" sign-off) |
+| Analytics | User Performance tab | 🚫 intentional "coming soon" | ✅ Fixed — real uncapped table (same override) |
+| Team Live Status | Call Tracking / Call Recording / Version / Status filters | 🚫 decorative, no backing schema | ✅ Fixed — real `users` columns (migration 0031) + working filters |
 
-None of the above were fixed inline, per this phase's own instruction.
+All 7 were fixed and live-verified in the 2026-09-04 follow-up pass (not left for later, per your explicit instruction to correct everything except the calls-volume item). Jobs/Clients/Recruiters sort controls were intentionally not added — no sort key beyond the existing default was ever specified.

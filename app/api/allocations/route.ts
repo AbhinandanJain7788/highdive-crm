@@ -36,6 +36,11 @@ export async function GET(request: Request) {
     createdFrom: searchParams.get("createdFrom") ?? undefined,
     createdTo: searchParams.get("createdTo") ?? undefined,
     pool: searchParams.get("pool") === "true",
+    assignToIds: searchParams
+      .getAll("assignToIds")
+      .flatMap((v) => v.split(","))
+      .map((v) => v.trim())
+      .filter(Boolean),
     sort: (SORT_KEYS as readonly string[]).includes(sortParam ?? "")
       ? (sortParam as (typeof SORT_KEYS)[number])
       : undefined,
