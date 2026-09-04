@@ -46,3 +46,18 @@ button {
   user-select: none;
   caret-color: transparent;
 }
+
+/*
+ * Belt and braces for the same problem: nothing outside a real text
+ * field should ever paint an insertion caret, on any page. Table text
+ * stays selectable so phone numbers and names can still be copied --
+ * only the caret is suppressed.
+ */
+*:not(input):not(textarea) {
+  caret-color: transparent;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  caret-color: auto;
+}
