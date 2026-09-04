@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { parseCsv } from "@/lib/csvParse";
-import type { DuplicateReviewRow, ImportBatchSummary } from "@/lib/import.shared";
+import type { DuplicateReviewRow, ImportBatchSummary, ImportResult } from "@/lib/import.shared";
 
 type RowDecision = "skip" | "import_anyway";
 
@@ -18,7 +18,7 @@ export default function CandidateImportPage() {
   const [batch, setBatch] = useState<ImportBatchSummary | null>(null);
   const [duplicates, setDuplicates] = useState<DuplicateReviewRow[]>([]);
   const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
 
   async function handleFile(file: File) {
     setError(null);
@@ -84,8 +84,10 @@ export default function CandidateImportPage() {
   const importStepColor1 = importStep >= 1 ? "#FF5C35" : "#EEF0F5";
   const importStepColor2 = importStep >= 2 ? "#FF5C35" : "#EEF0F5";
   const importStepColor3 = importStep >= 3 ? "#FF5C35" : "#EEF0F5";
+  // Was "skipped as duplicates", which only ever guessed at the reason — a row with
+  // no Name is skipped here too. The real breakdown is rendered below instead.
   const importedLabel = result
-    ? `${result.imported} candidates imported successfully, ${result.skipped} skipped as duplicates.`
+    ? `${result.imported} candidates imported successfully, ${result.skipped} skipped.`
     : "";
 
   return (
@@ -211,7 +213,29 @@ export default function CandidateImportPage() {
         {importStep === 3 && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 8 }}>Import Complete</div>
-            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 24 }}>{importedLabel}</div>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: result?.skipReasons?.length ? 14 : 24 }}>{importedLabel}</div>
+            {result && result.skipReasons?.length > 0 && (
+              <div
+                style={{
+                  background: "#FFFBEB",
+                  border: "1px solid #FDE68A",
+                  borderRadius: 8,
+                  padding: "12px 16px",
+                  marginBottom: 24,
+                  textAlign: "left",
+                  display: "inline-block",
+                  maxWidth: 460,
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>Why rows were skipped</div>
+                {result.skipReasons.map((r) => (
+                  <div key={r.reason} style={{ display: "flex", gap: 10, fontSize: 12.5, color: "#78350F", marginBottom: 4 }}>
+                    <span style={{ fontWeight: 700, minWidth: 26 }}>{r.count}</span>
+                    <span>{r.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <button
               onClick={() => router.push("/candidates")}
               style={{ background: "#FF5C35", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "10px 24px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}

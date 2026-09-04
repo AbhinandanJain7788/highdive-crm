@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { parseCsv } from "@/lib/csvParse";
-import type { DuplicateReviewRow, ImportBatchSummary } from "@/lib/import.shared";
+import type { DuplicateReviewRow, ImportBatchSummary, ImportResult } from "@/lib/import.shared";
 
 type DmTab = "bulkImport" | "bulkExport" | "bulkDelete" | "dataCleanup" | "dataTransfer";
 type UploadType = "allocations" | "customers";
@@ -95,7 +95,7 @@ function BulkImportPanel() {
   const [batch, setBatch] = useState<ImportBatchSummary | null>(null);
   const [duplicates, setDuplicates] = useState<DuplicateReviewRow[]>([]);
   const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
 
   async function handleFile(file: File) {
     setError(null);
@@ -295,9 +295,41 @@ function BulkImportPanel() {
       {result && (
         <div style={{ textAlign: "center", padding: "20px 0" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 8 }}>Import Complete</div>
-          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: result.skipReasons?.length ? 14 : 20 }}>
             {result.imported} rows imported, {result.skipped} skipped.
           </div>
+          {/* A bare "0 imported, 17 skipped" reads as a broken feature. The most
+              common cause is a candidate sheet uploaded under the Allocations type,
+              which skips every row by design — naming the reason is what tells the
+              two apart without going to the server logs. */}
+          {result.skipReasons?.length > 0 && (
+            <div
+              style={{
+                background: "#FFFBEB",
+                border: "1px solid #FDE68A",
+                borderRadius: 8,
+                padding: "12px 16px",
+                marginBottom: 20,
+                textAlign: "left",
+                display: "inline-block",
+                maxWidth: 460,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>Why rows were skipped</div>
+              {result.skipReasons.map((r) => (
+                <div key={r.reason} style={{ display: "flex", gap: 10, fontSize: 12.5, color: "#78350F", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, minWidth: 26 }}>{r.count}</span>
+                  <span>{r.label}</span>
+                </div>
+              ))}
+              {result.imported === 0 && uploadType === "allocations" && (
+                <div style={{ fontSize: 12, color: "#92400E", marginTop: 10, paddingTop: 10, borderTop: "1px solid #FDE68A" }}>
+                  Uploading a list of new candidates? Start again and choose <strong>Customers</strong> — Allocations only
+                  assigns candidates that already exist.
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={() => {
               setStep(1);

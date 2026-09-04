@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { logActivity } from "@/lib/activityLog";
+import { SKIP_REASON_LABELS, type ImportResult, type ImportSkipReason } from "@/lib/import.shared";
 
 type UploadType = Database["public"]["Enums"]["upload_type"];
 type ImportDecision = Database["public"]["Enums"]["import_decision"];
@@ -212,7 +213,7 @@ export async function confirmImport(
   supabase: SupabaseClient<Database>,
   batchId: string,
   confirmedBy: string
-): Promise<{ imported: number; skipped: number }> {
+): Promise<ImportResult> {
   const { data: batch, error: batchErr } = await supabase
     .from("import_batches")
     .select("id, upload_type, process_id")
@@ -229,7 +230,11 @@ export async function confirmImport(
   if (rowsErr) throw rowsErr;
 
   let imported = 0;
-  let skipped = 0;
+  // Tallied by reason rather than as one number, so the Import Complete card can
+  // say *why* nothing landed. The total is derived from this map at the end, which
+  // is what keeps the headline count and the breakdown from ever disagreeing.
+  const skips = new Map<ImportSkipReason, number>();
+  const skip = (reason: ImportSkipReason, n = 1) => skips.set(reason, (skips.get(reason) ?? 0) + n);
 
   if (batch.upload_type === "customers") {
     // Bulk-inserted in chunks rather than one row at a time — a 500-row import at
@@ -244,12 +249,12 @@ export async function confirmImport(
     for (const row of rows ?? []) {
       const isDuplicate = Boolean(row.matched_candidate_id);
       if (isDuplicate && row.decision !== "import_anyway") {
-        skipped += 1;
+        skip("duplicate_skipped");
         continue;
       }
       const name = field(row.raw, "name", "full name");
       if (!name) {
-        skipped += 1;
+        skip("missing_name");
         continue;
       }
       toImport.push({
@@ -287,7 +292,7 @@ export async function confirmImport(
         .select("id");
       if (insertErr || !inserted) {
         console.error(`confirmImport: candidate chunk insert failed (batch ${batchId}, rows ${i}-${i + chunk.length})`, insertErr);
-        skipped += chunk.length;
+        skip("insert_failed", chunk.length);
         continue;
       }
       imported += inserted.length;
@@ -319,9 +324,9 @@ export async function confirmImport(
     }
   } else {
     // "allocations" — every row targets an existing candidate by phone; a match
-    // gets bulk-assigned to the named recruiter (by email) if they're unassigned.
-    // Nothing is created here, matching the upload card's own description
-    // ("creates or overwrites allocations").
+    // gets bulk-assigned to the named recruiter if they're unassigned. Nothing is
+    // created here, matching the upload card's own description ("creates or
+    // overwrites allocations").
     type AllocationCandidate = { id: string; phone: string | null; applications: { id: string; assigned_recruiter_id: string | null }[] | null };
     const { data: candidates } = await supabase
       .from("candidates")
@@ -330,33 +335,80 @@ export async function confirmImport(
     const byPhone = new Map<string, AllocationCandidate>();
     for (const c of candidates ?? []) if (c.phone) byPhone.set(normalizePhone(c.phone), c);
 
+    // Recruiters resolve from one bulk fetch instead of a query per row, and by
+    // name as well as by email. Bulk Export writes its "Assigned Recruiter" column
+    // as the recruiter's *name* (lib/data-management.ts), so an email-only lookup
+    // meant a file this app exported could never be imported back — every row fell
+    // through to a skip. `users.name` carries no uniqueness constraint, so a name
+    // held by two users is reported as ambiguous rather than silently resolved to
+    // whichever row PostgREST happened to return first.
+    const { data: users } = await supabase.from("users").select("id, name, email");
+    const userByEmail = new Map<string, string>();
+    const userByName = new Map<string, string | null>();
+    for (const u of users ?? []) {
+      if (u.email) userByEmail.set(u.email.toLowerCase().trim(), u.id);
+      const nameKey = u.name?.toLowerCase().trim();
+      if (nameKey) userByName.set(nameKey, userByName.has(nameKey) ? null : u.id);
+    }
+
     for (const row of rows ?? []) {
       const phone = field(row.raw, "phone", "mobile", "contact");
-      const recruiterEmail = field(row.raw, "recruiter", "recruiter email", "assign to");
-      const candidate = phone ? byPhone.get(normalizePhone(phone)) : undefined;
-      const application = candidate?.applications?.[0];
-      if (!candidate || !application || !recruiterEmail) {
-        skipped += 1;
+      // "assigned recruiter" is the header Bulk Export emits; the others are the
+      // spellings a hand-built sheet tends to use.
+      const recruiterRef = field(row.raw, "recruiter", "recruiter email", "recruiter name", "assign to", "assigned recruiter");
+
+      // Checked one at a time, in the order an operator would fix them, so the
+      // skip breakdown names the single reason this row failed rather than
+      // collapsing four different problems into one count.
+      if (!phone) {
+        skip("missing_phone");
+        continue;
+      }
+      const candidate = byPhone.get(normalizePhone(phone));
+      if (!candidate) {
+        skip("no_candidate_match");
+        continue;
+      }
+      const application = candidate.applications?.[0];
+      if (!application) {
+        skip("no_application");
+        continue;
+      }
+      if (!recruiterRef) {
+        skip("missing_recruiter");
         continue;
       }
 
-      const { data: recruiter } = await supabase.from("users").select("id").eq("email", recruiterEmail.toLowerCase()).maybeSingle();
-      if (!recruiter) {
-        skipped += 1;
+      const recruiterKey = recruiterRef.toLowerCase().trim();
+      let recruiterId = userByEmail.get(recruiterKey) ?? null;
+      if (!recruiterId && userByName.has(recruiterKey)) {
+        recruiterId = userByName.get(recruiterKey) ?? null;
+        if (!recruiterId) {
+          skip("recruiter_ambiguous");
+          continue;
+        }
+      }
+      if (!recruiterId) {
+        skip("recruiter_not_found");
         continue;
       }
 
       const { error: assignErr } = await supabase
         .from("assignments")
-        .insert({ application_id: application.id, recruiter_id: recruiter.id, assigned_by: confirmedBy, method: "manual", status: "active" });
+        .insert({ application_id: application.id, recruiter_id: recruiterId, assigned_by: confirmedBy, method: "manual", status: "active" });
       if (assignErr) {
-        skipped += 1;
+        skip("assignment_failed");
         continue;
       }
-      await supabase.from("applications").update({ assigned_recruiter_id: recruiter.id }).eq("id", application.id);
+      await supabase.from("applications").update({ assigned_recruiter_id: recruiterId }).eq("id", application.id);
       imported += 1;
     }
   }
+
+  const skipped = [...skips.values()].reduce((sum, n) => sum + n, 0);
+  const skipReasons = [...skips.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => ({ reason, label: SKIP_REASON_LABELS[reason], count }));
 
   await supabase
     .from("import_batches")
@@ -368,8 +420,11 @@ export async function confirmImport(
     action: "import_confirmed",
     entityType: "import_batch",
     entityId: batchId,
-    metadata: { uploadType: batch.upload_type, imported, skipped },
+    // The breakdown goes into the activity log too: the Import Complete card is
+    // gone as soon as the operator navigates away, and "why did nothing import
+    // last Tuesday" is exactly the question the log exists to answer.
+    metadata: { uploadType: batch.upload_type, imported, skipped, skipReasons },
   });
 
-  return { imported, skipped };
+  return { imported, skipped, skipReasons };
 }
