@@ -164,6 +164,79 @@ const navMain: NavItem[] = [
   },
 ];
 
+// Jobs/Clients/Recruiters/Assignment/Reports (Phase 3-4) are fully built and wired
+// to live data but had no in-app navigation anywhere — ui-gaps.md item #7, unresolved
+// since Phase 1 because the signed-off HTML's own sidebar is an exact 18-item list
+// that never includes them (they were designed into the prototype's state model —
+// goJobs/goClients handlers — but never wired to a visible nav element). Phase 8
+// Step 1 adds this as a new group rather than silently folding them into an existing
+// one, so the 5 pre-existing groups stay exactly as signed off; per your explicit
+// choice over the alternative (candidate-detail links only), which doesn't give
+// Clients/Assignment/Reports any click path at all.
+const navRecruitment: NavItem[] = [
+  {
+    href: "/jobs",
+    label: "Jobs",
+    permission: "manage_jobs",
+    icon: (c) => (
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <rect x="2" y="5" width="12" height="8.5" rx="1.4" fill="none" stroke={c} strokeWidth="1.3" />
+        <path d="M5.5 5V3.8a1.4 1.4 0 011.4-1.4h2.2a1.4 1.4 0 011.4 1.4V5" fill="none" stroke={c} strokeWidth="1.3" />
+      </svg>
+    ),
+  },
+  {
+    href: "/clients",
+    label: "Clients",
+    permission: "manage_clients",
+    icon: (c) => (
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <rect x="2" y="2" width="8" height="12" rx="1" fill="none" stroke={c} strokeWidth="1.3" />
+        <rect x="4" y="4.3" width="1.5" height="1.5" fill={c} />
+        <rect x="7" y="4.3" width="1.5" height="1.5" fill={c} />
+        <rect x="4" y="7.3" width="1.5" height="1.5" fill={c} />
+        <rect x="7" y="7.3" width="1.5" height="1.5" fill={c} />
+        <path d="M10 7v7h3.5V8.5L10 7z" fill="none" stroke={c} strokeWidth="1.2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/recruiters",
+    label: "Recruiters",
+    permission: "view_all_records",
+    icon: (c) => (
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <circle cx="8" cy="5.2" r="2.6" fill="none" stroke={c} strokeWidth="1.4" />
+        <path d="M3 14c0-2.6 2.2-4.4 5-4.4s5 1.8 5 4.4" fill="none" stroke={c} strokeWidth="1.4" />
+      </svg>
+    ),
+  },
+  {
+    href: "/assignment",
+    label: "Assignment",
+    permission: "manage_assignment",
+    icon: (c) => (
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <circle cx="4.5" cy="4.5" r="2.2" fill="none" stroke={c} strokeWidth="1.3" />
+        <circle cx="11.5" cy="11.5" r="2.2" fill="none" stroke={c} strokeWidth="1.3" />
+        <path d="M6.2 6.2l3.6 3.6" stroke={c} strokeWidth="1.3" />
+        <path d="M9 5l1.5 1.5L12 5" fill="none" stroke={c} strokeWidth="1.1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/reports",
+    label: "Reports",
+    permission: "view_all_records",
+    icon: (c) => (
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <path d="M3 13.5V6M7 13.5V2.5M11 13.5V8.5" stroke={c} strokeWidth="1.5" />
+        <line x1="1.5" y1="13.5" x2="14.5" y2="13.5" stroke={c} strokeWidth="1.2" />
+      </svg>
+    ),
+  },
+];
+
 const navTemplates: NavItem[] = [
   {
     href: "/whatsapp-templates",
@@ -307,6 +380,17 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
       {navMain.filter(visible).map((item) => (
         <NavRow key={item.href} item={item} active={isActive(item.href)} />
       ))}
+
+      {navRecruitment.filter(visible).length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#FF5C35", letterSpacing: 0.6, padding: "16px 10px 6px" }}>
+            RECRUITMENT
+          </div>
+          {navRecruitment.filter(visible).map((item) => (
+            <NavRow key={item.href} item={item} active={isActive(item.href)} />
+          ))}
+        </>
+      )}
 
       <div style={{ fontSize: 11, fontWeight: 700, color: "#FF5C35", letterSpacing: 0.6, padding: "16px 10px 6px" }}>
         TEMPLATES
