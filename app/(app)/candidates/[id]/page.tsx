@@ -27,6 +27,7 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
     <CandidateDetailClient
       candidate={candidate}
       canEdit={profile?.permissions.includes("manage_candidates") ?? false}
+      canAssign={profile?.permissions.includes("manage_assignment") ?? false}
       calls={calls}
     />
   );

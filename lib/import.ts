@@ -2,7 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { logActivity } from "@/lib/activityLog";
-import { SKIP_REASON_LABELS, type ImportResult, type ImportSkipReason } from "@/lib/import.shared";
+import { autoDistribute, manualAssign } from "@/lib/assignment";
+import { SKIP_REASON_LABELS, type ImportAssignOption, type ImportResult, type ImportSkipReason } from "@/lib/import.shared";
 
 type UploadType = Database["public"]["Enums"]["upload_type"];
 type ImportDecision = Database["public"]["Enums"]["import_decision"];
@@ -212,7 +213,8 @@ async function firstStageIdForJob(supabase: SupabaseClient<Database>, jobId: str
 export async function confirmImport(
   supabase: SupabaseClient<Database>,
   batchId: string,
-  confirmedBy: string
+  confirmedBy: string,
+  assignOption: ImportAssignOption = { mode: "none" }
 ): Promise<ImportResult> {
   const { data: batch, error: batchErr } = await supabase
     .from("import_batches")
@@ -230,6 +232,7 @@ export async function confirmImport(
   if (rowsErr) throw rowsErr;
 
   let imported = 0;
+  let assigned = 0;
   // Tallied by reason rather than as one number, so the Import Complete card can
   // say *why* nothing landed. The total is derived from this map at the end, which
   // is what keeps the headline count and the breakdown from ever disagreeing.
@@ -318,9 +321,33 @@ export async function confirmImport(
         return { candidate_id: c.candidateId, job_id: job.id, pipeline_stage_id: job.stageId, status: "new" as const };
       })
       .filter((r): r is { candidate_id: string; job_id: string; pipeline_stage_id: string | null; status: "new" } => r !== null);
+    const createdApplicationIds: string[] = [];
     for (let i = 0; i < applicationRows.length; i += CHUNK) {
-      const { error: appErr } = await supabase.from("applications").insert(applicationRows.slice(i, i + CHUNK));
+      const { data: insertedApps, error: appErr } = await supabase
+        .from("applications")
+        .insert(applicationRows.slice(i, i + CHUNK))
+        .select("id");
       if (appErr) console.error(`confirmImport: application chunk insert failed (batch ${batchId})`, appErr);
+      else createdApplicationIds.push(...(insertedApps ?? []).map((a) => a.id));
+    }
+
+    // "Assigned To" for the batch — every newly-created application starts
+    // unassigned (common pool), so this is a plain distribute/assign over the ids
+    // just created, reusing the exact same Assignment-screen logic rather than a
+    // parallel implementation.
+    if (assignOption.mode === "manual" && createdApplicationIds.length > 0) {
+      const result = await manualAssign(supabase, {
+        assignments: createdApplicationIds.map((applicationId) => ({ applicationId, recruiterId: assignOption.recruiterId })),
+        assignedBy: confirmedBy,
+      });
+      assigned += result.assigned.length;
+    } else if (assignOption.mode === "auto" && createdApplicationIds.length > 0) {
+      const result = await autoDistribute(supabase, {
+        applicationIds: createdApplicationIds,
+        method: assignOption.method,
+        assignedBy: confirmedBy,
+      });
+      if (!("error" in result)) assigned += result.assigned.length;
     }
   } else {
     // "allocations" — every row targets an existing candidate by phone; a match
@@ -402,6 +429,7 @@ export async function confirmImport(
       }
       await supabase.from("applications").update({ assigned_recruiter_id: recruiterId }).eq("id", application.id);
       imported += 1;
+      assigned += 1;
     }
   }
 
@@ -423,8 +451,8 @@ export async function confirmImport(
     // The breakdown goes into the activity log too: the Import Complete card is
     // gone as soon as the operator navigates away, and "why did nothing import
     // last Tuesday" is exactly the question the log exists to answer.
-    metadata: { uploadType: batch.upload_type, imported, skipped, skipReasons },
+    metadata: { uploadType: batch.upload_type, imported, skipped, skipReasons, assigned },
   });
 
-  return { imported, skipped, skipReasons };
+  return { imported, skipped, skipReasons, assigned };
 }

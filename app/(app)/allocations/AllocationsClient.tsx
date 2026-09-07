@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { avatarColorFor, avatarLetterFor, statusStyles, crmStageForStatus, type ApplicationStatus } from "@/lib/mock";
+import { avatarColorFor, avatarLetterFor, statusStyles, crmStageForStatus, candidateProfileFor, type ApplicationStatus } from "@/lib/mock";
 import {
   COLUMN_LABELS,
   DEFAULT_COLUMNS,
@@ -39,8 +39,8 @@ function statusesForSelection(selected: Set<string>, mode: StatusMode): Applicat
   return APPLICATION_STATUSES.filter((s) => selected.has(crmStageForStatus(s)));
 }
 
-const cellMuted: React.CSSProperties = { fontSize: 12.5, color: "#9AA1AC" };
-const cellText: React.CSSProperties = { fontSize: 12.5, color: "#4B5565" };
+const cellMuted: React.CSSProperties = { fontSize: 12.5, color: "#9AA1AC", overflow: "hidden", textOverflow: "ellipsis" };
+const cellText: React.CSSProperties = { fontSize: 12.5, color: "#4B5565", overflow: "hidden", textOverflow: "ellipsis" };
 
 export default function AllocationsClient({
   initialRows,
@@ -206,9 +206,9 @@ export default function AllocationsClient({
     setSelectedRowIds((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.applicationId))));
   }
 
-  const gridTemplateColumns = `44px minmax(200px, 1.6fr) minmax(120px, 1fr) 130px 130px 130px 130px ${visibleColumns
+  const gridTemplateColumns = `44px minmax(200px, 1.6fr) minmax(160px, 1fr) 130px 130px 130px 130px ${visibleColumns
     .map(() => "minmax(140px, 1.1fr)")
-    .join(" ")} minmax(96px, 1fr)`;
+    .join(" ")} minmax(72px, 0.6fr)`;
 
   return (
     <div data-screen-label="Allocations">
@@ -378,7 +378,7 @@ export default function AllocationsClient({
           <div>Created On</div>
           <div>Created By</div>
           <div>Assign To</div>
-          <div>Sourced By</div>
+          <div>Location</div>
           {visibleColumns.map((id) => (
             <div key={id}>{COLUMN_LABELS[id]}</div>
           ))}
@@ -415,10 +415,15 @@ export default function AllocationsClient({
                 <div style={{ fontSize: 12, color: "#9AA1AC" }}>{a.phone}</div>
               </div>
             </div>
-            <div>
+            <div style={{ overflow: "hidden" }}>
               {a.status ? (
                 <span
                   style={{
+                    display: "inline-block",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                     fontSize: 12,
                     fontWeight: 600,
                     padding: "4px 10px",
@@ -436,13 +441,31 @@ export default function AllocationsClient({
             <div style={cellMuted}>{a.createdOn}</div>
             <div style={cellText}>{a.createdByName ?? "--"}</div>
             <div style={cellText}>{a.assignToName ?? "Unassigned"}</div>
-            <div style={cellText}>{a.sourcedByName ?? "--"}</div>
+            <div style={cellMuted}>{candidateProfileFor(a.candidateId).city || "--"}</div>
             {visibleColumns.map((id) => (
               <div key={id} style={cellMuted}>--</div>
             ))}
-            <div style={{ display: "flex", gap: 6 }}>
-              <button style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid #FFD9CC", background: "#FFF5F2", color: "#FF5C35", cursor: "pointer" }}>+</button>
-              <button style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid #FFD9CC", background: "#FFF5F2", color: "#FF5C35", cursor: "pointer" }}>📞</button>
+            <div>
+              <a
+                href={a.phone ? `tel:${a.phone}` : undefined}
+                title={a.phone ? `Call ${a.phone}` : "No phone number"}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  border: "1px solid #FFD9CC",
+                  background: a.phone ? "#FFF5F2" : "#F4F5F8",
+                  color: a.phone ? "#FF5C35" : "#C9CED6",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textDecoration: "none",
+                  cursor: a.phone ? "pointer" : "default",
+                  pointerEvents: a.phone ? "auto" : "none",
+                }}
+              >
+                📞
+              </a>
             </div>
           </div>
         ))}
@@ -484,6 +507,7 @@ export default function AllocationsClient({
           initialLocation=""
           initialPriorities={new Set()}
           showPriority={false}
+          showLocation={false}
           onCancel={() => setShowMoreFilters(false)}
           onApply={(mode, statuses) => {
             setStatusMode(mode);

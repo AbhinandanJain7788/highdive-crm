@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
+import ScrollReset from "@/components/ScrollReset";
 import { getCurrentUserProfile } from "@/lib/permissions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar permissions={profile.permissions} roleName={profile.roleName ?? "—"} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <Topbar userName={profile.name} roleName={profile.roleName ?? "—"} />
-        <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 24 }}>{children}</div>
+        <ScrollReset>{children}</ScrollReset>
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/Spinner";
 import {
   statusStyles,
   avatarColorFor,
@@ -74,6 +75,8 @@ export default function CandidatesClient({
   initialTotal: number;
 }) {
   const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [range, setRange] = useState<CustomerRange>("Overall");
 
@@ -209,7 +212,23 @@ export default function CandidatesClient({
     .join(" ")} minmax(90px, 0.9fr)`;
 
   return (
-    <div data-screen-label="Candidates List">
+    <div data-screen-label="Candidates List" style={{ position: "relative" }}>
+      {isNavigating && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(244,245,248,0.55)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "wait",
+          }}
+        >
+          <Spinner size={40} />
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 10 }}>
         <button
           onClick={() => router.push("/import")}
@@ -399,7 +418,11 @@ export default function CandidatesClient({
           return (
             <div
               key={c.id}
-              onClick={() => router.push(`/candidates/${c.id}`)}
+              onClick={() => {
+                if (isNavigating) return;
+                setOpeningId(c.id);
+                startNavigation(() => router.push(`/candidates/${c.id}`));
+              }}
               style={{
                 display: "grid",
                 gridTemplateColumns,
@@ -407,8 +430,9 @@ export default function CandidatesClient({
                 alignItems: "center",
                 padding: "11px 16px",
                 borderBottom: "1px solid #F4F5F8",
-                cursor: "pointer",
+                cursor: isNavigating ? "default" : "pointer",
                 whiteSpace: "nowrap",
+                opacity: isNavigating && openingId !== c.id ? 0.5 : 1,
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -470,20 +494,27 @@ export default function CandidatesClient({
                 <div key={id}>{renderColumnCell(id, cellRow)}</div>
               ))}
               <div>
-                <button
+                <a
+                  href={c.phone ? `tel:${c.phone}` : undefined}
                   onClick={(e) => e.stopPropagation()}
+                  title={c.phone ? `Call ${c.phone}` : "No phone number"}
                   style={{
                     width: 30,
                     height: 30,
                     borderRadius: "50%",
                     border: "1px solid #FFD9CC",
-                    background: "#FFF5F2",
-                    color: "#FF5C35",
-                    cursor: "pointer",
+                    background: c.phone ? "#FFF5F2" : "#F4F5F8",
+                    color: c.phone ? "#FF5C35" : "#C9CED6",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textDecoration: "none",
+                    cursor: c.phone ? "pointer" : "default",
+                    pointerEvents: c.phone ? "auto" : "none",
                   }}
                 >
                   📞
-                </button>
+                </a>
               </div>
             </div>
           );

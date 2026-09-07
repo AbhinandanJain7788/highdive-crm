@@ -202,7 +202,7 @@ export default function FollowUpsClient({
         <IconButton label="Select Date Range" onClick={() => setShowDateRange((v) => !v)} active={!!appliedDateRange}>
           <CalendarIcon />
         </IconButton>
-        <IconButton label="Filter" onClick={() => {}} active={activeFilterCount > 0}>
+        <IconButton label="Filter" onClick={() => setOpenStatusPopover((v) => !v)} active={activeFilterCount > 0}>
           <FunnelIcon />
         </IconButton>
         <div style={{ position: "relative" }}>

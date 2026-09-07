@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { statusStyles, avatarColorFor, avatarLetterFor, type ApplicationStatus } from "@/lib/mock";
 import { callDispositionStyles, fmtDuration } from "@/lib/mock/styles";
@@ -9,13 +9,17 @@ import type { CallRow } from "@/lib/calls.shared";
 
 const statusKeys = Object.keys(statusStyles) as ApplicationStatus[];
 
+type AutoMethod = "round_robin" | "load_balanced";
+
 export default function CandidateDetailClient({
   candidate,
   canEdit,
+  canAssign,
   calls,
 }: {
   candidate: CandidateDetail;
   canEdit: boolean;
+  canAssign: boolean;
   calls: CallRow[];
 }) {
   const router = useRouter();
@@ -31,6 +35,79 @@ export default function CandidateDetailClient({
   const [savedNotes, setSavedNotes] = useState(candidate.notes);
   const [saving, setSaving] = useState<"status" | "notes" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Assigned Recruiter — was read-only by design (a dropdown that silently discarded
+  // the change); now a real editor calling the same reassign/auto-distribute endpoints
+  // the Assignment screen uses, so this is the one place Assign To can actually change.
+  const [recruiterName, setRecruiterName] = useState(primary?.recruiter?.name ?? null);
+  const [assignEditing, setAssignEditing] = useState(false);
+  const [assignMode, setAssignMode] = useState<"manual" | "auto">("manual");
+  const [teamOptions, setTeamOptions] = useState<{ id: string; name: string }[]>([]);
+  const [manualRecruiterId, setManualRecruiterId] = useState("");
+  const [autoMethod, setAutoMethod] = useState<AutoMethod>("load_balanced");
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canAssign) return;
+    let cancelled = false;
+    fetch("/api/team?status=active")
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => {
+        if (!cancelled) setTeamOptions(body.data ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canAssign]);
+
+  async function submitAssign() {
+    if (!primary) return;
+    setAssigning(true);
+    setAssignError(null);
+    try {
+      if (assignMode === "manual") {
+        if (!manualRecruiterId) {
+          setAssignError("Pick a recruiter.");
+          return;
+        }
+        const res = await fetch("/api/assignment/reassign", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ applicationId: primary.id, recruiterId: manualRecruiterId }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error?.message ?? "Could not assign this candidate.");
+        }
+        setRecruiterName(teamOptions.find((t) => t.id === manualRecruiterId)?.name ?? "Assigned");
+      } else {
+        const res = await fetch("/api/assignment/auto-distribute", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ applicationIds: [primary.id], method: autoMethod }),
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(body?.error?.message ?? "Could not auto-assign this candidate.");
+        const assigned = body?.data?.assigned?.[0];
+        if (!assigned) {
+          throw new Error(
+            body?.data?.skipped?.[0]?.reason ??
+              "This candidate is already assigned — auto-distribute only picks up unassigned candidates. Use Manual to reassign."
+          );
+        }
+        setRecruiterName(assigned.recruiterName);
+      }
+      setAssignEditing(false);
+      setManualRecruiterId("");
+      router.refresh();
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Could not update the assignment.");
+    } finally {
+      setAssigning(false);
+    }
+  }
 
   // Schedule Follow-up — writes a real `follow_ups` row against the candidate's
   // primary application (Phase 5). The signed-off HTML's freeform text input
@@ -221,28 +298,133 @@ export default function CandidateDetailClient({
               ))}
             </select>
 
-            <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", marginBottom: 6 }}>
-              Assigned Recruiter
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase" }}>
+                Assigned Recruiter
+              </div>
+              {canAssign && primary && !assignEditing && (
+                <div
+                  onClick={() => {
+                    setAssignEditing(true);
+                    setAssignError(null);
+                  }}
+                  style={{ fontSize: 12, fontWeight: 600, color: "#FF5C35", cursor: "pointer" }}
+                >
+                  Change
+                </div>
+              )}
             </div>
-            {/* Read-only here by design: changing an assignment writes the
-                `assignments` table under a one-active-assignment-per-application
-                constraint, which is Phase 4's allocation flow. Showing the real
-                current holder beats a dropdown that silently discards the change. */}
-            <div
-              title="Reassignment is handled by the Assignment screen (Phase 4)"
-              style={{
-                width: "100%",
-                padding: "9px 10px",
-                border: "1px solid #E7E9EE",
-                borderRadius: 6,
-                fontSize: 13,
-                color: primary?.recruiter ? "#1D2433" : "#9AA1AC",
-                marginBottom: 16,
-                background: "#F7F8FA",
-              }}
-            >
-              {primary?.recruiter?.name ?? "Unassigned"}
-            </div>
+
+            {!assignEditing ? (
+              <div
+                title={!primary ? "This candidate has no application to assign." : undefined}
+                style={{
+                  width: "100%",
+                  padding: "9px 10px",
+                  border: "1px solid #E7E9EE",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: recruiterName ? "#1D2433" : "#9AA1AC",
+                  marginBottom: 16,
+                  background: "#F7F8FA",
+                }}
+              >
+                {recruiterName ?? "Unassigned"}
+              </div>
+            ) : (
+              <div style={{ border: "1px solid #E7E9EE", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 4, background: "#F4F5F8", borderRadius: 6, padding: 3, marginBottom: 10 }}>
+                  <div
+                    onClick={() => setAssignMode("manual")}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "6px 0",
+                      borderRadius: 5,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: assignMode === "manual" ? "#FFFFFF" : "transparent",
+                      color: assignMode === "manual" ? "#1D2433" : "#6B7280",
+                    }}
+                  >
+                    Manual Assign
+                  </div>
+                  <div
+                    onClick={() => setAssignMode("auto")}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      padding: "6px 0",
+                      borderRadius: 5,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: assignMode === "auto" ? "#FFFFFF" : "transparent",
+                      color: assignMode === "auto" ? "#1D2433" : "#6B7280",
+                    }}
+                  >
+                    Automatic Assign
+                  </div>
+                </div>
+
+                {assignMode === "manual" ? (
+                  <select
+                    value={manualRecruiterId}
+                    onChange={(e) => setManualRecruiterId(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 10 }}
+                  >
+                    <option value="">Select recruiter</option>
+                    {teamOptions.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={autoMethod}
+                    onChange={(e) => setAutoMethod(e.target.value as AutoMethod)}
+                    style={{ width: "100%", padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 10 }}
+                  >
+                    <option value="load_balanced">Load Balanced</option>
+                    <option value="round_robin">Round Robin</option>
+                  </select>
+                )}
+
+                {assignError && <div style={{ fontSize: 12, color: "#B42318", marginBottom: 8 }}>{assignError}</div>}
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={submitAssign}
+                    disabled={assigning || (assignMode === "manual" && !manualRecruiterId)}
+                    style={{
+                      flex: 1,
+                      background: "#FF5C35",
+                      border: "none",
+                      color: "#FFFFFF",
+                      borderRadius: 6,
+                      padding: "8px 0",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: assigning ? "default" : "pointer",
+                      opacity: assigning ? 0.7 : 1,
+                    }}
+                  >
+                    {assigning ? "Assigning…" : "Assign"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAssignEditing(false);
+                      setAssignError(null);
+                    }}
+                    style={{ flex: 1, background: "#FFFFFF", border: "1px solid #D9DCE3", color: "#4B5565", borderRadius: 6, padding: "8px 0", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, color: "#1D2433" }}>
               <div>

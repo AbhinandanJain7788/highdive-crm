@@ -55,4 +55,11 @@ export const SKIP_REASON_LABELS: Record<ImportSkipReason, string> = {
 
 export type ImportSkipSummary = { reason: ImportSkipReason; label: string; count: number };
 
-export type ImportResult = { imported: number; skipped: number; skipReasons: ImportSkipSummary[] };
+export type ImportResult = { imported: number; skipped: number; skipReasons: ImportSkipSummary[]; assigned: number };
+
+// POST /api/import/:id/confirm body — how the newly-created customers should be
+// assigned. "none" leaves every application in the common pool (previous behavior).
+export type ImportAssignOption =
+  | { mode: "none" }
+  | { mode: "manual"; recruiterId: string }
+  | { mode: "auto"; method: "round_robin" | "load_balanced" };

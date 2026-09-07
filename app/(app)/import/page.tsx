@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseCsv } from "@/lib/csvParse";
-import type { DuplicateReviewRow, ImportBatchSummary, ImportResult } from "@/lib/import.shared";
+import type { DuplicateReviewRow, ImportAssignOption, ImportBatchSummary, ImportResult } from "@/lib/import.shared";
 
 type RowDecision = "skip" | "import_anyway";
+type AssignMode = "none" | "manual" | "auto";
+type AutoMethod = "round_robin" | "load_balanced";
 
 export default function CandidateImportPage() {
   const router = useRouter();
@@ -19,6 +21,21 @@ export default function CandidateImportPage() {
   const [duplicates, setDuplicates] = useState<DuplicateReviewRow[]>([]);
   const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  // Assigned To — the CSV import previously created candidates with no way to say
+  // who should own them, unlike the Assignment screen's own Auto/Manual choice.
+  // Mirrors that screen's two modes, applied once to every candidate this batch creates.
+  const [assignMode, setAssignMode] = useState<AssignMode>("none");
+  const [autoMethod, setAutoMethod] = useState<AutoMethod>("load_balanced");
+  const [teamOptions, setTeamOptions] = useState<{ id: string; name: string }[]>([]);
+  const [manualRecruiterId, setManualRecruiterId] = useState("");
+
+  useEffect(() => {
+    fetch("/api/team?status=active")
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => setTeamOptions(body.data ?? []))
+      .catch(() => {});
+  }, []);
 
   async function handleFile(file: File) {
     setError(null);
@@ -66,10 +83,24 @@ export default function CandidateImportPage() {
 
   async function confirmImport() {
     if (!batch) return;
+    if (assignMode === "manual" && !manualRecruiterId) {
+      setError("Pick a recruiter to assign this batch to, or choose a different Assigned To option.");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/import/${batch.id}/confirm`, { method: "POST" });
+      const assign: ImportAssignOption =
+        assignMode === "manual"
+          ? { mode: "manual", recruiterId: manualRecruiterId }
+          : assignMode === "auto"
+            ? { mode: "auto", method: autoMethod }
+            : { mode: "none" };
+      const res = await fetch(`/api/import/${batch.id}/confirm`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ assign }),
+      });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error?.message ?? "Could not confirm the import.");
       setResult(body.data);
@@ -87,7 +118,8 @@ export default function CandidateImportPage() {
   // Was "skipped as duplicates", which only ever guessed at the reason — a row with
   // no Name is skipped here too. The real breakdown is rendered below instead.
   const importedLabel = result
-    ? `${result.imported} candidates imported successfully, ${result.skipped} skipped.`
+    ? `${result.imported} candidates imported successfully, ${result.skipped} skipped.` +
+      (result.assigned > 0 ? ` ${result.assigned} assigned.` : "")
     : "";
 
   return (
@@ -189,6 +221,58 @@ export default function CandidateImportPage() {
                 </div>
               );
             })}
+            <div style={{ borderTop: "1px solid #EEF0F4", marginTop: 8, paddingTop: 18 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1D2433", marginBottom: 4 }}>Assigned To</div>
+              <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 12 }}>
+                Choose how the candidates in this batch should be assigned to a recruiter.
+              </div>
+              <div style={{ display: "flex", gap: 4, background: "#F4F5F8", borderRadius: 7, padding: 3, marginBottom: 12, width: "fit-content" }}>
+                {(["none", "auto", "manual"] as AssignMode[]).map((mode) => (
+                  <div
+                    key={mode}
+                    onClick={() => setAssignMode(mode)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 5,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: assignMode === mode ? "#FFFFFF" : "transparent",
+                      color: assignMode === mode ? "#1D2433" : "#6B7280",
+                      boxShadow: assignMode === mode ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                    }}
+                  >
+                    {mode === "none" ? "Leave Unassigned" : mode === "auto" ? "Automatic Assign" : "Manual Assign"}
+                  </div>
+                ))}
+              </div>
+
+              {assignMode === "auto" && (
+                <select
+                  value={autoMethod}
+                  onChange={(e) => setAutoMethod(e.target.value as AutoMethod)}
+                  style={{ padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 12 }}
+                >
+                  <option value="load_balanced">Load Balanced</option>
+                  <option value="round_robin">Round Robin</option>
+                </select>
+              )}
+              {assignMode === "manual" && (
+                <select
+                  value={manualRecruiterId}
+                  onChange={(e) => setManualRecruiterId(e.target.value)}
+                  style={{ width: "100%", maxWidth: 320, padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 12 }}
+                >
+                  <option value="">Select recruiter</option>
+                  {teamOptions.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             <button
               onClick={confirmImport}
               disabled={busy}

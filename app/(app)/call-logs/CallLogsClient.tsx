@@ -224,13 +224,7 @@ export default function CallLogsClient({
     };
   }, [callLogsTab, unattributedSearch]);
 
-  async function togglePlay(call: CallRow) {
-    if (!call.hasRecording) return;
-    if (playingCallId === call.id) {
-      audioRef.current?.pause();
-      setPlayingCallId(null);
-      return;
-    }
+  async function resolveRecordingUrl(call: CallRow): Promise<string | null> {
     let url = audioUrlCache[call.id];
     if (url === undefined) {
       try {
@@ -246,10 +240,49 @@ export default function CallLogsClient({
       }
       setAudioUrlCache((prev) => ({ ...prev, [call.id]: url ?? null }));
     }
+    return url ?? null;
+  }
+
+  async function togglePlay(call: CallRow) {
+    if (!call.hasRecording) return;
+    if (playingCallId === call.id) {
+      audioRef.current?.pause();
+      setPlayingCallId(null);
+      return;
+    }
+    const url = await resolveRecordingUrl(call);
     if (!url || !audioRef.current) return;
     audioRef.current.src = url;
     audioRef.current.play().catch(() => {});
     setPlayingCallId(call.id);
+  }
+
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  async function downloadRecording(call: CallRow) {
+    if (!call.hasRecording || downloadingId === call.id) return;
+    setDownloadingId(call.id);
+    try {
+      const url = await resolveRecordingUrl(call);
+      if (!url) {
+        setLoadError("Recording is not available for download.");
+        return;
+      }
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `call-${call.id}-${call.candidateName.replace(/\s+/g, "_")}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      setLoadError("Could not download the recording.");
+    } finally {
+      setDownloadingId(null);
+    }
   }
 
   function onAttributeChoiceChange(id: number, val: string) {
@@ -559,34 +592,45 @@ export default function CallLogsClient({
                       Play Recording
                     </button>
                   )}
-                  <div
+                  <button
+                    onClick={() => downloadRecording(l)}
+                    disabled={!l.hasRecording || downloadingId === l.id}
+                    title={l.hasRecording ? "Download Recording" : "No recording to download"}
                     style={{
                       width: 30,
                       height: 30,
                       borderRadius: 6,
                       border: "1px solid #E7E9EE",
+                      background: "#FFFFFF",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
+                      cursor: l.hasRecording && downloadingId !== l.id ? "pointer" : "default",
+                      opacity: l.hasRecording ? 1 : 0.4,
                     }}
                   >
                     <svg width="13" height="13" viewBox="0 0 16 16">
                       <path d="M8 1.5v9M4.5 7l3.5 3.5L11.5 7" fill="none" stroke="#4B5565" strokeWidth="1.3" />
                       <line x1="2" y1="13.5" x2="14" y2="13.5" stroke="#4B5565" strokeWidth="1.3" />
                     </svg>
-                  </div>
-                  <div
+                  </button>
+                  <a
+                    href={l.phone ? `tel:${l.phone}` : undefined}
+                    title={l.phone ? `Call ${l.phone}` : "No phone number"}
                     style={{
                       width: 30,
                       height: 30,
                       borderRadius: "50%",
                       border: "1px solid #FFD9CC",
-                      background: "#FFF5F2",
+                      background: l.phone ? "#FFF5F2" : "#F4F5F8",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
+                      textDecoration: "none",
+                      cursor: l.phone ? "pointer" : "default",
+                      pointerEvents: l.phone ? "auto" : "none",
                     }}
                   >
                     <svg width="14" height="14" viewBox="0 0 16 16">
@@ -597,7 +641,7 @@ export default function CallLogsClient({
                         strokeWidth="1.3"
                       />
                     </svg>
-                  </div>
+                  </a>
                 </div>
               </div>
             ))}

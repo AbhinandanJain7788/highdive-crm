@@ -581,6 +581,7 @@ export function MoreFiltersPanel({
   initialLocation,
   initialPriorities,
   showPriority = true,
+  showLocation = true,
   onCancel,
   onApply,
 }: {
@@ -589,6 +590,7 @@ export function MoreFiltersPanel({
   initialLocation: string;
   initialPriorities: Set<string>;
   showPriority?: boolean;
+  showLocation?: boolean;
   onCancel: () => void;
   onApply: (mode: StatusMode, statuses: Set<string>, location: string, priorities: Set<string>) => void;
 }) {
@@ -618,19 +620,23 @@ export function MoreFiltersPanel({
       >
         <div style={{ fontSize: 18, fontWeight: 700, color: "#4B5565", marginBottom: 24 }}>More filters</div>
 
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#4B5565", marginBottom: 12 }}>Filter By Location</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid #D9DCE3", borderRadius: 8, padding: "12px 14px", marginBottom: 26 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <circle cx="7" cy="7" r="5" fill="none" stroke="#9AA1AC" strokeWidth="1.5" />
-            <line x1="11" y1="11" x2="15" y2="15" stroke="#9AA1AC" strokeWidth="1.5" />
-          </svg>
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Search ..."
-            style={{ border: "none", outline: "none", fontSize: 14, flex: 1, color: "#1D2433", background: "transparent" }}
-          />
-        </div>
+        {showLocation && (
+          <>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#4B5565", marginBottom: 12 }}>Filter By Location</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid #D9DCE3", borderRadius: 8, padding: "12px 14px", marginBottom: 26 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16">
+                <circle cx="7" cy="7" r="5" fill="none" stroke="#9AA1AC" strokeWidth="1.5" />
+                <line x1="11" y1="11" x2="15" y2="15" stroke="#9AA1AC" strokeWidth="1.5" />
+              </svg>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Search ..."
+                style={{ border: "none", outline: "none", fontSize: 14, flex: 1, color: "#1D2433", background: "transparent" }}
+              />
+            </div>
+          </>
+        )}
 
         <div style={{ fontSize: 14, fontWeight: 600, color: "#4B5565", marginBottom: 14, display: "flex", alignItems: "center", gap: 22 }}>
           Filter by
