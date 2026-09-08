@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import Spinner from "@/components/Spinner";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { avatarColorFor, avatarLetterFor, statusStyles, crmStageForStatus, candidateProfileFor, type ApplicationStatus } from "@/lib/mock";
 import {
   COLUMN_LABELS,
@@ -48,14 +46,14 @@ export default function AllocationsClient({
   initialRows,
   initialTotal,
   initialCounts,
+  canEditStatus,
 }: {
   initialRows: AllocationRow[];
   initialTotal: number;
   initialCounts: { new: number; attempted: number };
+  canEditStatus: boolean;
 }) {
-  const router = useRouter();
-  const [isNavigating, startNavigation] = useTransition();
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [statusPopupRow, setStatusPopupRow] = useState<AllocationRow | null>(null);
 
   const [bucket, setBucket] = useState<AllocationBucket>("new");
   const [range, setRange] = useState<AllocRange>("Overall");
@@ -205,22 +203,6 @@ export default function AllocationsClient({
 
   return (
     <div data-screen-label="Allocations" style={{ position: "relative" }}>
-      {isNavigating && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(244,245,248,0.55)",
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "wait",
-          }}
-        >
-          <Spinner size={40} />
-        </div>
-      )}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
           {counts.new + counts.attempted}
@@ -393,11 +375,7 @@ export default function AllocationsClient({
         {rows.map((a) => (
           <div
             key={a.applicationId}
-            onClick={() => {
-              if (isNavigating) return;
-              setOpeningId(a.candidateId);
-              startNavigation(() => router.push(`/candidates/${a.candidateId}`));
-            }}
+            onClick={() => setStatusPopupRow(a)}
             style={{
               display: "grid",
               gridTemplateColumns,
@@ -406,8 +384,7 @@ export default function AllocationsClient({
               padding: "11px 16px",
               borderBottom: "1px solid #F4F5F8",
               whiteSpace: "nowrap",
-              cursor: isNavigating ? "default" : "pointer",
-              opacity: isNavigating && openingId !== a.candidateId ? 0.5 : 1,
+              cursor: "pointer",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -542,6 +519,126 @@ export default function AllocationsClient({
           }}
         />
       )}
+
+      {statusPopupRow && (
+        <StatusPopup
+          row={statusPopupRow}
+          canEdit={canEditStatus}
+          onClose={() => setStatusPopupRow(null)}
+          onSaved={(applicationId, next) => {
+            setRows((prev) => prev.map((r) => (r.applicationId === applicationId ? { ...r, status: next } : r)));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function StatusPopup({
+  row,
+  canEdit,
+  onClose,
+  onSaved,
+}: {
+  row: AllocationRow;
+  canEdit: boolean;
+  onClose: () => void;
+  onSaved: (applicationId: string, next: ApplicationStatus) => void;
+}) {
+  const statusKeys = Object.keys(statusStyles) as ApplicationStatus[];
+  const [status, setStatus] = useState<ApplicationStatus | "">(row.status ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(next: ApplicationStatus) {
+    const previous = status;
+    setStatus(next);
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/applications/${row.applicationId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not update status.");
+      }
+      onSaved(row.applicationId, next);
+    } catch (err) {
+      setStatus(previous);
+      setError(err instanceof Error ? err.message : "Could not update status.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(29,36,51,0.4)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: 340, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 12, padding: 22 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: avatarColorFor(row.name),
+              color: "#FFFFFF",
+              fontSize: 14,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {avatarLetterFor(row.name)}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#1D2433" }}>{row.name}</div>
+            <div style={{ fontSize: 12, color: "#9AA1AC" }}>{row.phone}</div>
+          </div>
+          <div onClick={onClose} style={{ cursor: "pointer", fontSize: 20, color: "#9AA1AC", lineHeight: 1 }}>
+            ×
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", marginBottom: 6 }}>
+          Status
+        </div>
+        <select
+          value={status}
+          disabled={!canEdit || saving}
+          onChange={(e) => save(e.target.value as ApplicationStatus)}
+          title={canEdit ? undefined : "You don't have permission to change status."}
+          style={{
+            width: "100%",
+            padding: "9px 10px",
+            border: "1px solid #D9DCE3",
+            borderRadius: 6,
+            fontSize: 13,
+            color: "#1D2433",
+            background: !canEdit ? "#F7F8FA" : "#FFFFFF",
+          }}
+        >
+          {!status && <option value="">No status</option>}
+          {statusKeys.map((opt) => (
+            <option key={opt} value={opt}>
+              {statusStyles[opt].label}
+            </option>
+          ))}
+        </select>
+
+        {saving && <div style={{ fontSize: 12, color: "#9AA1AC", marginTop: 8 }}>Saving…</div>}
+        {error && <div style={{ fontSize: 12, color: "#B42318", marginTop: 8 }}>{error}</div>}
+      </div>
     </div>
   );
 }
