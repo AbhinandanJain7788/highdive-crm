@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Spinner from "@/components/Spinner";
 import { avatarColorFor, avatarLetterFor, statusStyles, crmStageForStatus, candidateProfileFor, type ApplicationStatus } from "@/lib/mock";
 import {
   COLUMN_LABELS,
@@ -51,6 +53,10 @@ export default function AllocationsClient({
   initialTotal: number;
   initialCounts: { new: number; attempted: number };
 }) {
+  const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
   const [bucket, setBucket] = useState<AllocationBucket>("new");
   const [range, setRange] = useState<AllocRange>("Overall");
   const [search, setSearch] = useState("");
@@ -95,7 +101,6 @@ export default function AllocationsClient({
 
   const [sortKey, setSortKey] = useState<SortKey>("created-new");
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(DEFAULT_COLUMNS.filter((c) => c !== "assignTo"));
-  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
 
   const [openStatusPopover, setOpenStatusPopover] = useState(false);
   const [openSortPopover, setOpenSortPopover] = useState(false);
@@ -194,24 +199,28 @@ export default function AllocationsClient({
       return next;
     });
   }
-  function toggleRow(id: string) {
-    setSelectedRowIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-  function toggleAllRows() {
-    setSelectedRowIds((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.applicationId))));
-  }
-
-  const gridTemplateColumns = `44px minmax(200px, 1.6fr) minmax(160px, 1fr) 130px 130px 130px 130px ${visibleColumns
+  const gridTemplateColumns = `minmax(200px, 1.6fr) minmax(160px, 1fr) 130px 130px 130px 130px ${visibleColumns
     .map(() => "minmax(140px, 1.1fr)")
     .join(" ")} minmax(72px, 0.6fr)`;
 
   return (
-    <div data-screen-label="Allocations">
+    <div data-screen-label="Allocations" style={{ position: "relative" }}>
+      {isNavigating && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(244,245,248,0.55)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "wait",
+          }}
+        >
+          <Spinner size={40} />
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
           {counts.new + counts.attempted}
@@ -370,9 +379,6 @@ export default function AllocationsClient({
             whiteSpace: "nowrap",
           }}
         >
-          <div>
-            <input type="checkbox" checked={selectedRowIds.size > 0 && selectedRowIds.size === rows.length} onChange={toggleAllRows} />
-          </div>
           <div>Name</div>
           <div>Status</div>
           <div>Created On</div>
@@ -387,11 +393,23 @@ export default function AllocationsClient({
         {rows.map((a) => (
           <div
             key={a.applicationId}
-            style={{ display: "grid", gridTemplateColumns, gap: 10, alignItems: "center", padding: "11px 16px", borderBottom: "1px solid #F4F5F8", whiteSpace: "nowrap" }}
+            onClick={() => {
+              if (isNavigating) return;
+              setOpeningId(a.candidateId);
+              startNavigation(() => router.push(`/candidates/${a.candidateId}`));
+            }}
+            style={{
+              display: "grid",
+              gridTemplateColumns,
+              gap: 10,
+              alignItems: "center",
+              padding: "11px 16px",
+              borderBottom: "1px solid #F4F5F8",
+              whiteSpace: "nowrap",
+              cursor: isNavigating ? "default" : "pointer",
+              opacity: isNavigating && openingId !== a.candidateId ? 0.5 : 1,
+            }}
           >
-            <div>
-              <input type="checkbox" checked={selectedRowIds.has(a.applicationId)} onChange={() => toggleRow(a.applicationId)} />
-            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
                 style={{
@@ -448,14 +466,11 @@ export default function AllocationsClient({
             <div>
               <a
                 href={a.phone ? `tel:${a.phone}` : undefined}
+                onClick={(e) => e.stopPropagation()}
                 title={a.phone ? `Call ${a.phone}` : "No phone number"}
                 style={{
                   width: 30,
                   height: 30,
-                  borderRadius: "50%",
-                  border: "1px solid #FFD9CC",
-                  background: a.phone ? "#FFF5F2" : "#F4F5F8",
-                  color: a.phone ? "#FF5C35" : "#C9CED6",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -464,7 +479,7 @@ export default function AllocationsClient({
                   pointerEvents: a.phone ? "auto" : "none",
                 }}
               >
-                📞
+                <PhoneIcon color={a.phone ? "#1E8A5F" : "#C9CED6"} />
               </a>
             </div>
           </div>
@@ -528,6 +543,20 @@ export default function AllocationsClient({
         />
       )}
     </div>
+  );
+}
+
+function PhoneIcon({ color }: { color: string }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.9 21 3 13.1 3 3.9c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8Z"
+        stroke={color}
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
