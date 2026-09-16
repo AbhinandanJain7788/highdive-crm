@@ -137,7 +137,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                   <div style={{ fontSize: 11.5, color: "#6B7280" }}>Total Talk Time</div>
                 </div>
               </div>
-              <div onClick={() => router.push("/reports")} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <div onClick={() => router.push("/analytics")} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <svg width="16" height="16" viewBox="0 0 16 16">
                   <rect x="1" y="9" width="3" height="5" fill="#9AA1AC" />
                   <rect x="6.5" y="5" width="3" height="9" fill="#9AA1AC" />
@@ -223,7 +223,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                 ))}
               </div>
             </div>
-            <div onClick={() => router.push("/reports")} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, cursor: "pointer", marginTop: 8 }}>
+            <div onClick={() => router.push("/analytics")} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, cursor: "pointer", marginTop: 8 }}>
               <svg width="16" height="16" viewBox="0 0 16 16">
                 <rect x="1" y="9" width="3" height="5" fill="#9AA1AC" />
                 <rect x="6.5" y="5" width="3" height="9" fill="#9AA1AC" />
