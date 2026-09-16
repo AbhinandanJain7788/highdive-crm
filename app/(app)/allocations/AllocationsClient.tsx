@@ -25,6 +25,7 @@ import {
   FunnelIcon,
   SortAzIcon,
   ColumnsIcon,
+  CallButton,
   type StatusMode,
   type SortKey,
   type ColumnId,
@@ -446,23 +447,7 @@ export default function AllocationsClient({
               <div key={id} style={cellMuted}>--</div>
             ))}
             <div>
-              <a
-                href={a.phone ? `tel:${a.phone}` : undefined}
-                onClick={(e) => e.stopPropagation()}
-                title={a.phone ? `Call ${a.phone}` : "No phone number"}
-                style={{
-                  width: 30,
-                  height: 30,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textDecoration: "none",
-                  cursor: a.phone ? "pointer" : "default",
-                  pointerEvents: a.phone ? "auto" : "none",
-                }}
-              >
-                <PhoneIcon color={a.phone ? "#1E8A5F" : "#C9CED6"} />
-              </a>
+              <CallButton phone={a.phone} onClick={(e) => e.stopPropagation()} />
             </div>
           </div>
         ))}
@@ -621,20 +606,6 @@ function CandidateDetailModal({
         )}
       </div>
     </div>
-  );
-}
-
-function PhoneIcon({ color }: { color: string }) {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.9 21 3 13.1 3 3.9c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1L6.6 10.8Z"
-        stroke={color}
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }
 

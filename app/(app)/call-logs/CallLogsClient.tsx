@@ -12,6 +12,7 @@ import {
   dateRangeBounds,
   IconButton,
   SortAzIcon,
+  CallButton,
   type SortKey,
   type DateRange,
 } from "@/components/ListFilters";
@@ -615,33 +616,7 @@ export default function CallLogsClient({
                       <line x1="2" y1="13.5" x2="14" y2="13.5" stroke="#4B5565" strokeWidth="1.3" />
                     </svg>
                   </button>
-                  <a
-                    href={l.phone ? `tel:${l.phone}` : undefined}
-                    title={l.phone ? `Call ${l.phone}` : "No phone number"}
-                    style={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: "50%",
-                      border: "1px solid #FFD9CC",
-                      background: l.phone ? "#FFF5F2" : "#F4F5F8",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      textDecoration: "none",
-                      cursor: l.phone ? "pointer" : "default",
-                      pointerEvents: l.phone ? "auto" : "none",
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16">
-                      <path
-                        d="M3 2.5c1.2 0 1.6 2 2 2.6.4.7-.8 1.3-.5 2 .5 1.2 1.7 2.4 2.9 2.9.7.3 1.3-.9 2-.5.6.4 2.6.8 2.6 2 0 1.3-1.2 2-2.4 2C6.9 13.5 2.5 9.1 2.5 4.9c0-1.2.7-2.4 2-2.4z"
-                        fill="none"
-                        stroke="#FF5C35"
-                        strokeWidth="1.3"
-                      />
-                    </svg>
-                  </a>
+                  <CallButton phone={l.phone} />
                 </div>
               </div>
             ))}

@@ -33,6 +33,7 @@ import {
   FunnelIcon,
   SortAzIcon,
   ColumnsIcon,
+  CallButton,
   type StatusMode,
   type SortKey,
   type ColumnId,
@@ -494,27 +495,7 @@ export default function CandidatesClient({
                 <div key={id}>{renderColumnCell(id, cellRow)}</div>
               ))}
               <div>
-                <a
-                  href={c.phone ? `tel:${c.phone}` : undefined}
-                  onClick={(e) => e.stopPropagation()}
-                  title={c.phone ? `Call ${c.phone}` : "No phone number"}
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: "50%",
-                    border: "1px solid #FFD9CC",
-                    background: c.phone ? "#FFF5F2" : "#F4F5F8",
-                    color: c.phone ? "#FF5C35" : "#C9CED6",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    textDecoration: "none",
-                    cursor: c.phone ? "pointer" : "default",
-                    pointerEvents: c.phone ? "auto" : "none",
-                  }}
-                >
-                  📞
-                </a>
+                <CallButton phone={c.phone} onClick={(e) => e.stopPropagation()} />
               </div>
             </div>
           );
