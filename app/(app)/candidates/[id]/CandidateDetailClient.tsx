@@ -16,11 +16,20 @@ export default function CandidateDetailClient({
   canEdit,
   canAssign,
   calls,
+  onClose,
+  onStatusChanged,
+  onRecruiterChanged,
 }: {
   candidate: CandidateDetail;
   canEdit: boolean;
   canAssign: boolean;
   calls: CallRow[];
+  // Set only when this is rendered inline (e.g. the Allocations detail modal)
+  // instead of as its own routed page — swaps the "Back to Candidates" nav
+  // for a plain close action and lets the caller sync its own row state.
+  onClose?: () => void;
+  onStatusChanged?: (status: ApplicationStatus) => void;
+  onRecruiterChanged?: (recruiterName: string) => void;
 }) {
   const router = useRouter();
 
@@ -81,7 +90,9 @@ export default function CandidateDetailClient({
           const body = await res.json().catch(() => null);
           throw new Error(body?.error?.message ?? "Could not assign this candidate.");
         }
-        setRecruiterName(teamOptions.find((t) => t.id === manualRecruiterId)?.name ?? "Assigned");
+        const name = teamOptions.find((t) => t.id === manualRecruiterId)?.name ?? "Assigned";
+        setRecruiterName(name);
+        onRecruiterChanged?.(name);
       } else {
         const res = await fetch("/api/assignment/auto-distribute", {
           method: "POST",
@@ -98,10 +109,11 @@ export default function CandidateDetailClient({
           );
         }
         setRecruiterName(assigned.recruiterName);
+        onRecruiterChanged?.(assigned.recruiterName);
       }
       setAssignEditing(false);
       setManualRecruiterId("");
-      router.refresh();
+      if (!onClose) router.refresh();
     } catch (err) {
       setAssignError(err instanceof Error ? err.message : "Could not update the assignment.");
     } finally {
@@ -173,7 +185,8 @@ export default function CandidateDetailClient({
         const body = await res.json().catch(() => null);
         throw new Error(body?.error?.message ?? "Could not update status.");
       }
-      router.refresh();
+      onStatusChanged?.(next);
+      if (!onClose) router.refresh();
     } catch (err) {
       setStatus(previous);
       setError(err instanceof Error ? err.message : "Could not update status.");
@@ -196,7 +209,7 @@ export default function CandidateDetailClient({
         throw new Error(body?.error?.message ?? "Could not save notes.");
       }
       setSavedNotes(notes);
-      router.refresh();
+      if (!onClose) router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save notes.");
     } finally {
@@ -208,12 +221,20 @@ export default function CandidateDetailClient({
 
   return (
     <div data-screen-label="Candidate Detail">
-      <div
-        onClick={() => router.push("/candidates")}
-        style={{ fontSize: 13, color: "#6B7280", cursor: "pointer", marginBottom: 14 }}
-      >
-        ← Back to Candidates
-      </div>
+      {onClose ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 10 }}>
+          <div onClick={onClose} style={{ cursor: "pointer", fontSize: 22, color: "#9AA1AC", lineHeight: 1 }}>
+            ×
+          </div>
+        </div>
+      ) : (
+        <div
+          onClick={() => router.push("/candidates")}
+          style={{ fontSize: 13, color: "#6B7280", cursor: "pointer", marginBottom: 14 }}
+        >
+          ← Back to Candidates
+        </div>
+      )}
 
       {error && (
         <div

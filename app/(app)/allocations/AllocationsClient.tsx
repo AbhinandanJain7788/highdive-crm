@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { avatarColorFor, avatarLetterFor, statusStyles, crmStageForStatus, candidateProfileFor, type ApplicationStatus } from "@/lib/mock";
+import CandidateDetailClient from "@/app/(app)/candidates/[id]/CandidateDetailClient";
+import type { CandidateDetail } from "@/lib/candidates.shared";
+import type { CallRow } from "@/lib/calls.shared";
 import {
   COLUMN_LABELS,
   DEFAULT_COLUMNS,
@@ -47,12 +49,16 @@ export default function AllocationsClient({
   initialRows,
   initialTotal,
   initialCounts,
+  canEdit,
+  canAssign,
 }: {
   initialRows: AllocationRow[];
   initialTotal: number;
   initialCounts: { new: number; attempted: number };
+  canEdit: boolean;
+  canAssign: boolean;
 }) {
-  const router = useRouter();
+  const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
 
   const [bucket, setBucket] = useState<AllocationBucket>("new");
   const [range, setRange] = useState<AllocRange>("Overall");
@@ -374,7 +380,7 @@ export default function AllocationsClient({
         {rows.map((a) => (
           <div
             key={a.applicationId}
-            onClick={() => router.push(`/candidates/${a.candidateId}`)}
+            onClick={() => setDetailCandidateId(a.candidateId)}
             style={{
               display: "grid",
               gridTemplateColumns,
@@ -519,6 +525,101 @@ export default function AllocationsClient({
         />
       )}
 
+      {detailCandidateId && (
+        <CandidateDetailModal
+          candidateId={detailCandidateId}
+          canEdit={canEdit}
+          canAssign={canAssign}
+          onClose={() => setDetailCandidateId(null)}
+          onStatusChanged={(applicationId, next) =>
+            setRows((prev) => prev.map((r) => (r.applicationId === applicationId ? { ...r, status: next } : r)))
+          }
+          onRecruiterChanged={(applicationId, name) =>
+            setRows((prev) => prev.map((r) => (r.applicationId === applicationId ? { ...r, assignToName: name } : r)))
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+// Fetches the same candidate detail the Customers tab's routed page shows and
+// renders it inline over Allocations, so a status/assignment change happens
+// without ever leaving this list — the previous behaviour (a router.push to
+// /candidates/:id) took the user off the Allocations tab entirely.
+function CandidateDetailModal({
+  candidateId,
+  canEdit,
+  canAssign,
+  onClose,
+  onStatusChanged,
+  onRecruiterChanged,
+}: {
+  candidateId: string;
+  canEdit: boolean;
+  canAssign: boolean;
+  onClose: () => void;
+  onStatusChanged: (applicationId: string, status: ApplicationStatus) => void;
+  onRecruiterChanged: (applicationId: string, recruiterName: string) => void;
+}) {
+  const [candidate, setCandidate] = useState<CandidateDetail | null>(null);
+  const [calls, setCalls] = useState<CallRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      fetch(`/api/candidates/${candidateId}`).then((res) => (res.ok ? res.json() : Promise.reject(res))),
+      fetch(`/api/candidates/${candidateId}/calls`).then((res) => (res.ok ? res.json() : { data: [] })),
+    ])
+      .then(([candidateBody, callsBody]) => {
+        if (cancelled) return;
+        setCandidate(candidateBody.data);
+        setCalls(callsBody.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not load this candidate.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateId]);
+
+  const applicationId = candidate?.applications[0]?.id ?? null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(29,36,51,0.4)", zIndex: 60, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "5vh 16px", overflowY: "auto" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: 900, maxWidth: "100%", background: "#F7F8FA", borderRadius: 12, padding: 20 }}
+      >
+        {loading && <div style={{ textAlign: "center", color: "#9AA1AC", fontSize: 13, padding: "40px 0" }}>Loading…</div>}
+        {!loading && error && <div style={{ textAlign: "center", color: "#B42318", fontSize: 13, padding: "40px 0" }}>{error}</div>}
+        {!loading && candidate && (
+          <CandidateDetailClient
+            candidate={candidate}
+            canEdit={canEdit}
+            canAssign={canAssign}
+            calls={calls}
+            onClose={onClose}
+            onStatusChanged={(status) => {
+              if (applicationId) onStatusChanged(applicationId, status);
+            }}
+            onRecruiterChanged={(name) => {
+              if (applicationId) onRecruiterChanged(applicationId, name);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
