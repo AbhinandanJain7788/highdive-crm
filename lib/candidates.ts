@@ -16,7 +16,12 @@ export type CandidateListOptions = {
   search?: string;
   statuses?: ApplicationStatus[];
   sources?: string[];
-  unassignedOnly?: boolean;
+  // Customers is the list of people someone is actually working, not the intake
+  // queue — an unassigned candidate has no owner yet and belongs on Allocations'
+  // "New" tab instead, so GET /api/candidates always sets this. Kept as an option
+  // (rather than hardcoded here) only so a future caller with a real reason to see
+  // everyone doesn't have to fight this default.
+  assignedOnly?: boolean;
   // Inclusive ISO bounds on `created_at`, backing the Overall / Last 30 Days /
   // Select Range tabs. Filtering here rather than in the browser keeps the range
   // honest across pages — a client-side filter would only ever see the current one.
@@ -102,11 +107,11 @@ export async function getCandidateRows(
   supabase: SupabaseClient<Database>,
   options: CandidateListOptions
 ): Promise<{ rows: CandidateRow[]; total: number }> {
-  const { search, statuses, sources, unassignedOnly, createdFrom, createdTo, sort = "created-new", pagination } = options;
+  const { search, statuses, sources, assignedOnly, createdFrom, createdTo, sort = "created-new", pagination } = options;
 
   // An inner join is what makes a status filter actually exclude candidates; the
   // default embed is a left join and would keep every candidate regardless.
-  const needsInnerJoin = Boolean(statuses?.length) || unassignedOnly;
+  const needsInnerJoin = Boolean(statuses?.length) || assignedOnly;
   const select = `${CANDIDATE_COLUMNS}, applications${needsInnerJoin ? "!inner" : ""}(${APPLICATION_EMBED})`;
 
   let query = supabase.from("candidates").select(select, { count: "exact" }).is("deleted_at", null);
@@ -121,7 +126,10 @@ export async function getCandidateRows(
   }
   if (statuses?.length) query = query.in("applications.status", statuses);
   if (sources?.length) query = query.in("source", sources);
-  if (unassignedOnly) query = query.is("applications.assigned_recruiter_id", null);
+  // Candidates whose only applications are unassigned never match this (inner
+  // join), which is exactly the exclusion — Allocations' "New" tab is where an
+  // unassigned application belongs.
+  if (assignedOnly) query = query.not("applications.assigned_recruiter_id", "is", null);
   if (createdFrom) query = query.gte("created_at", createdFrom);
   if (createdTo) query = query.lte("created_at", createdTo);
 

@@ -25,7 +25,6 @@ import {
   SortPopover,
   MoreFiltersPanel,
   ManageColumnsModal,
-  UserScopeDropdown,
   DateRangeBar,
   DEFAULT_DATE_RANGE,
   dateRangeBounds,
@@ -37,7 +36,6 @@ import {
   type StatusMode,
   type SortKey,
   type ColumnId,
-  type UserScope,
   type DateRange,
 } from "@/components/ListFilters";
 import { PAGE_SIZES, type CandidateRow } from "@/lib/candidates.shared";
@@ -85,7 +83,6 @@ export default function CandidatesClient({
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [locationFilter, setLocationFilter] = useState("");
   const [selectedPriorities, setSelectedPriorities] = useState<Set<string>>(new Set());
-  const [userScope, setUserScope] = useState<UserScope>("selected");
 
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
   const [appliedDateRange, setAppliedDateRange] = useState<DateRange | null>(null);
@@ -116,7 +113,7 @@ export default function CandidatesClient({
   useEffect(() => {
     if (firstRender.current) return;
     setPage(1);
-  }, [search, range, appliedDateRange, statusKey, userScope, sortKey, pageSize]);
+  }, [search, range, appliedDateRange, statusKey, sortKey, pageSize]);
 
   useEffect(() => {
     // The server already rendered page 1 with the default filters; refetching it
@@ -129,7 +126,6 @@ export default function CandidatesClient({
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
     if (statusKey) params.set("status", statusKey);
-    if (userScope !== "selected") params.set("unassigned", "true");
     params.set("sort", sortKey);
     params.set("page", String(page));
     params.set("pageSize", String(pageSize));
@@ -180,7 +176,7 @@ export default function CandidatesClient({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [search, statusKey, userScope, sortKey, page, pageSize, range, appliedDateRange]);
+  }, [search, statusKey, sortKey, page, pageSize, range, appliedDateRange]);
 
   // Location and Priority have no columns on `candidates` — they read the mock
   // profiles, which are keyed by seed ids and hold nothing for a real uuid. Applied
@@ -232,7 +228,7 @@ export default function CandidatesClient({
       )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 10 }}>
         <button
-          onClick={() => router.push("/import")}
+          onClick={() => router.push("/import?from=candidates")}
           style={{
             background: "#FFFFFF",
             border: "1px solid #D9DCE3",
@@ -267,6 +263,10 @@ export default function CandidatesClient({
           {total}
           <br />
           <span style={{ fontSize: 13, fontWeight: 600, color: "#4B5565" }}>Customers</span>
+          {/* Only candidates with an assigned recruiter live here — an unassigned
+              one (e.g. a fresh CSV import nobody's picked up yet) is intake, not a
+              worked customer, so it shows on Allocations' "New" tab instead. */}
+          <div style={{ fontSize: 11, fontWeight: 500, color: "#9AA1AC", marginTop: 2 }}>Assigned only — unassigned in Allocations</div>
         </div>
         <div
           style={{
@@ -338,8 +338,6 @@ export default function CandidatesClient({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <UserScopeDropdown value={userScope} onChange={setUserScope} />
-
         <IconButton label="Filter" onClick={() => setShowMoreFilters(true)} active={activeFilterCount > 0}>
           <FunnelIcon />
         </IconButton>

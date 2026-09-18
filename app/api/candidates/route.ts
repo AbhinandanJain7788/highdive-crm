@@ -13,6 +13,12 @@ const SORT_KEYS: SortKey[] = ["name-asc", "name-desc", "created-new", "created-o
 // Any signed-in user may call it; a recruiter sees only the candidates tied to an
 // assignment they hold or held. That scoping is RLS's job (Phase 2), never a filter
 // bolted on here — see claude.md > Business Logic Rules.
+//
+// Always assignedOnly: Customers is the working list, not the intake queue — an
+// unassigned candidate (e.g. one just brought in by CSV import with no recruiter
+// picked) has no owner yet and belongs on Allocations' "New" tab instead. There is
+// deliberately no query param to turn this off; Allocations is where unassigned
+// records live.
 export async function GET(request: Request) {
   const profile = await getCurrentUserProfile();
   if (!profile) {
@@ -38,7 +44,7 @@ export async function GET(request: Request) {
       search: searchParams.get("search") ?? undefined,
       statuses,
       sources,
-      unassignedOnly: searchParams.get("unassigned") === "true",
+      assignedOnly: true,
       createdFrom: searchParams.get("createdFrom") ?? undefined,
       createdTo: searchParams.get("createdTo") ?? undefined,
       sort: SORT_KEYS.includes(sortParam as SortKey) ? (sortParam as SortKey) : undefined,

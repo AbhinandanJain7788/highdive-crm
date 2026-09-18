@@ -93,6 +93,7 @@ function BulkImportPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batch, setBatch] = useState<ImportBatchSummary | null>(null);
+  const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateReviewRow[]>([]);
   const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -105,12 +106,71 @@ function BulkImportPanel() {
   const [jobOptions, setJobOptions] = useState<{ id: string; title: string }[]>([]);
   const [jobId, setJobId] = useState("");
 
+  // "+ Add a new job" — same mini-form as the Customers Import CSV wizard
+  // (app/(app)/import/page.tsx), only offered to someone who could create a job
+  // anyway (POST /api/jobs already requires manage_jobs).
+  const [canManageJobs, setCanManageJobs] = useState(false);
+  const [showNewJobForm, setShowNewJobForm] = useState(false);
+  const [clientOptions, setClientOptions] = useState<{ id: string; company: string }[]>([]);
+  const [newJobTitle, setNewJobTitle] = useState("");
+  const [newJobClientId, setNewJobClientId] = useState("");
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [newJobError, setNewJobError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/jobs/open")
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((body) => setJobOptions(body.data ?? []))
       .catch(() => {});
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => setCanManageJobs(Boolean(body?.data?.permissions?.includes("manage_jobs"))))
+      .catch(() => {});
   }, []);
+
+  function openNewJobForm() {
+    setShowNewJobForm(true);
+    setNewJobError(null);
+    if (clientOptions.length === 0) {
+      fetch("/api/clients/open")
+        .then((res) => (res.ok ? res.json() : { data: [] }))
+        .then((body) => setClientOptions(body.data ?? []))
+        .catch(() => {});
+    }
+  }
+
+  async function createJob() {
+    const title = newJobTitle.trim();
+    if (!title) {
+      setNewJobError("Enter a job title.");
+      return;
+    }
+    if (!newJobClientId) {
+      setNewJobError("Pick which client this job is for.");
+      return;
+    }
+    setCreatingJob(true);
+    setNewJobError(null);
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, clientId: newJobClientId }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? "Could not create the job.");
+      const created = { id: body.data.id as string, title: body.data.title as string };
+      setJobOptions((prev) => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
+      setJobId(created.id);
+      setShowNewJobForm(false);
+      setNewJobTitle("");
+      setNewJobClientId("");
+    } catch (err) {
+      setNewJobError(err instanceof Error ? err.message : "Could not create the job.");
+    } finally {
+      setCreatingJob(false);
+    }
+  }
 
   async function handleFile(file: File) {
     setError(null);
@@ -120,6 +180,7 @@ function BulkImportPanel() {
       const text = await file.text();
       const { rows } = parseCsv(text);
       if (rows.length === 0) throw new Error("The file has no data rows.");
+      setParsedRows(rows);
 
       const uploadRes = await fetch("/api/import/upload", {
         method: "POST",
@@ -271,9 +332,45 @@ function BulkImportPanel() {
       {step === 2 && batch && uploadType === "customers" && !result && (
         <>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#1D2433", marginBottom: 6 }}>Review Possible Duplicates</div>
-          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 12 }}>
             {batch.filename} — {batch.totalRows} rows parsed, {duplicates.length} possible duplicates found.
           </div>
+
+          {parsedRows.length > 0 && (() => {
+            const columns = Object.keys(parsedRows[0]).slice(0, 6);
+            const preview = parsedRows.slice(0, 50);
+            return (
+              <div style={{ marginBottom: 16, maxWidth: 560 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6 }}>
+                  Rows in this file{parsedRows.length > preview.length ? ` (showing first ${preview.length} of ${parsedRows.length})` : ""}
+                </div>
+                <div style={{ border: "1px solid #EEF0F4", borderRadius: 8, overflow: "auto", maxHeight: 200 }}>
+                  <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: "#FAFBFC", position: "sticky", top: 0 }}>
+                        {columns.map((c) => (
+                          <th key={c} style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: "#6B7280", borderBottom: "1px solid #EEF0F4", whiteSpace: "nowrap" }}>
+                            {c}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map((row, i) => (
+                        <tr key={i}>
+                          {columns.map((c) => (
+                            <td key={c} style={{ padding: "6px 10px", color: "#1D2433", borderBottom: "1px solid #F4F5F8", whiteSpace: "nowrap" }}>
+                              {row[c] || "—"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
           {duplicates.map((row) => {
             const decision = decisions[row.rowId] || "skip";
             return (
@@ -317,7 +414,7 @@ function BulkImportPanel() {
               A row whose own Job column matches an existing job still wins over this. Without an application, a
               customer&apos;s status can&apos;t be changed.
             </div>
-            <select value={jobId} onChange={(e) => setJobId(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+            <select value={jobId} onChange={(e) => setJobId(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }}>
               <option value="">Select job</option>
               {jobOptions.map((j) => (
                 <option key={j.id} value={j.id}>
@@ -325,6 +422,55 @@ function BulkImportPanel() {
                 </option>
               ))}
             </select>
+
+            {canManageJobs && !showNewJobForm && (
+              <div onClick={openNewJobForm} style={{ fontSize: 12.5, fontWeight: 600, color: "#1A56DB", cursor: "pointer" }}>
+                + Add a new job
+              </div>
+            )}
+
+            {canManageJobs && showNewJobForm && (
+              <div style={{ border: "1px solid #EEF0F4", borderRadius: 8, padding: 14, marginTop: 6 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1D2433", marginBottom: 8 }}>
+                  Not hiring for anything listed? Add the role here — it&apos;s created as a real job, the same as one
+                  made from the Jobs screen.
+                </div>
+                {newJobError && <div style={{ fontSize: 12, color: "#B42318", marginBottom: 8 }}>{newJobError}</div>}
+                <input
+                  type="text"
+                  value={newJobTitle}
+                  onChange={(e) => setNewJobTitle(e.target.value)}
+                  placeholder="Job title, e.g. QA Engineer"
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                />
+                <select value={newJobClientId} onChange={(e) => setNewJobClientId(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }}>
+                  <option value="">Select client</option>
+                  {clientOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.company}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={createJob}
+                    disabled={creatingJob}
+                    style={{ background: "#1D2433", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: creatingJob ? "default" : "pointer", opacity: creatingJob ? 0.7 : 1 }}
+                  >
+                    {creatingJob ? "Creating…" : "Create & Select"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowNewJobForm(false);
+                      setNewJobError(null);
+                    }}
+                    style={{ background: "#FFFFFF", border: "1px solid #D9DCE3", color: "#4B5565", borderRadius: 6, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <button onClick={() => confirm(batch.id)} disabled={busy || !jobId} title={!jobId ? "Pick a job above first." : undefined} style={{ ...primaryBtn, opacity: busy || !jobId ? 0.7 : 1, marginTop: 8 }}>
             {busy ? "Confirming…" : "Confirm Import"}

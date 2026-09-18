@@ -215,7 +215,7 @@ export default function AllocationsClient({
             lands straight in this list's "New" tab (bucket = unassigned), so
             this is a shortcut to that flow, not a second one. */}
         <Link
-          href="/import"
+          href="/import?from=allocations"
           style={{
             background: "#FFFFFF",
             border: "1px solid #D9DCE3",

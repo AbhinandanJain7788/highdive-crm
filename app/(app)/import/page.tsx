@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { parseCsv } from "@/lib/csvParse";
 import type { DuplicateReviewRow, ImportAssignOption, ImportBatchSummary, ImportResult } from "@/lib/import.shared";
@@ -9,15 +9,26 @@ import type { DuplicateReviewRow, ImportAssignOption, ImportBatchSummary, Import
 type RowDecision = "skip" | "import_anyway";
 type AssignMode = "none" | "manual" | "auto";
 type AutoMethod = "round_robin" | "load_balanced";
+type ImportRawRow = Record<string, string>;
 
 export default function CandidateImportPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Which screen sent us here — Customers' own "Import CSV" button, or the
+  // shortcut on Allocations. Only "allocations" is recognized as a non-default;
+  // anything else (including no param, e.g. a bookmarked /import) falls back to
+  // Customers, which is where this page lived before Allocations got its own entry
+  // point. Drives where "Cancel Import" goes back to.
+  const from = searchParams.get("from") === "allocations" ? "allocations" : "candidates";
+  const cancelHref = from === "allocations" ? "/allocations" : "/candidates";
+  const cancelLabel = from === "allocations" ? "← Cancel — back to Allocations" : "← Cancel — back to Customers";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStep, setImportStep] = useState<1 | 2 | 3>(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [batch, setBatch] = useState<ImportBatchSummary | null>(null);
+  const [parsedRows, setParsedRows] = useState<ImportRawRow[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateReviewRow[]>([]);
   const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -38,6 +49,16 @@ export default function CandidateImportPage() {
   const [jobOptions, setJobOptions] = useState<{ id: string; title: string }[]>([]);
   const [jobId, setJobId] = useState("");
 
+  // "+ Add a new job" — only offered to someone who could create one anyway
+  // (POST /api/jobs already requires manage_jobs); nobody else sees the option.
+  const [canManageJobs, setCanManageJobs] = useState(false);
+  const [showNewJobForm, setShowNewJobForm] = useState(false);
+  const [clientOptions, setClientOptions] = useState<{ id: string; company: string }[]>([]);
+  const [newJobTitle, setNewJobTitle] = useState("");
+  const [newJobClientId, setNewJobClientId] = useState("");
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [newJobError, setNewJobError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/team?status=active")
       .then((res) => (res.ok ? res.json() : { data: [] }))
@@ -47,7 +68,55 @@ export default function CandidateImportPage() {
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((body) => setJobOptions(body.data ?? []))
       .catch(() => {});
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => setCanManageJobs(Boolean(body?.data?.permissions?.includes("manage_jobs"))))
+      .catch(() => {});
   }, []);
+
+  function openNewJobForm() {
+    setShowNewJobForm(true);
+    setNewJobError(null);
+    if (clientOptions.length === 0) {
+      fetch("/api/clients/open")
+        .then((res) => (res.ok ? res.json() : { data: [] }))
+        .then((body) => setClientOptions(body.data ?? []))
+        .catch(() => {});
+    }
+  }
+
+  async function createJob() {
+    const title = newJobTitle.trim();
+    if (!title) {
+      setNewJobError("Enter a job title.");
+      return;
+    }
+    if (!newJobClientId) {
+      setNewJobError("Pick which client this job is for.");
+      return;
+    }
+    setCreatingJob(true);
+    setNewJobError(null);
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, clientId: newJobClientId }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error?.message ?? "Could not create the job.");
+      const created = { id: body.data.id as string, title: body.data.title as string };
+      setJobOptions((prev) => [...prev, created].sort((a, b) => a.title.localeCompare(b.title)));
+      setJobId(created.id);
+      setShowNewJobForm(false);
+      setNewJobTitle("");
+      setNewJobClientId("");
+    } catch (err) {
+      setNewJobError(err instanceof Error ? err.message : "Could not create the job.");
+    } finally {
+      setCreatingJob(false);
+    }
+  }
 
   async function handleFile(file: File) {
     setError(null);
@@ -56,6 +125,7 @@ export default function CandidateImportPage() {
       const text = await file.text();
       const { rows } = parseCsv(text);
       if (rows.length === 0) throw new Error("The file has no data rows.");
+      setParsedRows(rows);
 
       const uploadRes = await fetch("/api/import/upload", {
         method: "POST",
@@ -144,11 +214,16 @@ export default function CandidateImportPage() {
     result && result.noJobCount > 0
       ? `${result.noJobCount} of those were imported without an application (no matching job) — their status can't be changed yet.`
       : null;
+  // Customers only lists assigned candidates now, so "Leave Unassigned" rows exist
+  // solely on Allocations' "New" tab — Done goes wherever this batch actually
+  // landed, not back to wherever the wizard was opened from.
+  const doneHref = assignMode === "none" ? "/allocations" : "/candidates";
+  const doneLabel = assignMode === "none" ? "Done — View in Allocations" : "Done — View in Customers";
 
   return (
     <div>
-      <Link href="/candidates" style={{ fontSize: 13, color: "#6B7280", cursor: "pointer", marginBottom: 14, display: "block", textDecoration: "none" }}>
-        ← Cancel Import
+      <Link href={cancelHref} style={{ fontSize: 13, color: "#6B7280", cursor: "pointer", marginBottom: 14, display: "block", textDecoration: "none" }}>
+        {cancelLabel}
       </Link>
       <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 32, maxWidth: 720 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
@@ -213,9 +288,46 @@ export default function CandidateImportPage() {
         {importStep === 2 && batch && (
           <>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 6 }}>Review Possible Duplicates</div>
-            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 12 }}>
               {batch.filename} — {batch.totalRows} rows parsed, {duplicates.length} possible duplicates found.
             </div>
+
+            {parsedRows.length > 0 && (() => {
+              const columns = Object.keys(parsedRows[0]).slice(0, 6);
+              const preview = parsedRows.slice(0, 50);
+              return (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6 }}>
+                    Rows in this file{parsedRows.length > preview.length ? ` (showing first ${preview.length} of ${parsedRows.length})` : ""}
+                  </div>
+                  <div style={{ border: "1px solid #EEF0F4", borderRadius: 8, overflow: "auto", maxHeight: 220 }}>
+                    <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: "#FAFBFC", position: "sticky", top: 0 }}>
+                          {columns.map((c) => (
+                            <th key={c} style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: "#6B7280", borderBottom: "1px solid #EEF0F4", whiteSpace: "nowrap" }}>
+                              {c}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.map((row, i) => (
+                          <tr key={i}>
+                            {columns.map((c) => (
+                              <td key={c} style={{ padding: "6px 10px", color: "#1D2433", borderBottom: "1px solid #F4F5F8", whiteSpace: "nowrap" }}>
+                                {row[c] || "—"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
             {duplicates.map((row) => {
               const decision = decisions[row.rowId] || "skip";
               const skipStyle =
@@ -272,6 +384,59 @@ export default function CandidateImportPage() {
                   </option>
                 ))}
               </select>
+
+              {canManageJobs && !showNewJobForm && (
+                <div onClick={openNewJobForm} style={{ fontSize: 12.5, fontWeight: 600, color: "#1A56DB", cursor: "pointer" }}>
+                  + Add a new job
+                </div>
+              )}
+
+              {canManageJobs && showNewJobForm && (
+                <div style={{ border: "1px solid #EEF0F4", borderRadius: 8, padding: 14, marginTop: 6, maxWidth: 360 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1D2433", marginBottom: 8 }}>
+                    Not hiring for anything listed? Add the role here — it&apos;s created as a real job, the same as
+                    one made from the Jobs screen.
+                  </div>
+                  {newJobError && <div style={{ fontSize: 12, color: "#B42318", marginBottom: 8 }}>{newJobError}</div>}
+                  <input
+                    type="text"
+                    value={newJobTitle}
+                    onChange={(e) => setNewJobTitle(e.target.value)}
+                    placeholder="Job title, e.g. QA Engineer"
+                    style={{ width: "100%", padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 8 }}
+                  />
+                  <select
+                    value={newJobClientId}
+                    onChange={(e) => setNewJobClientId(e.target.value)}
+                    style={{ width: "100%", padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 10 }}
+                  >
+                    <option value="">Select client</option>
+                    {clientOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.company}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={createJob}
+                      disabled={creatingJob}
+                      style={{ background: "#1D2433", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: creatingJob ? "default" : "pointer", opacity: creatingJob ? 0.7 : 1 }}
+                    >
+                      {creatingJob ? "Creating…" : "Create & Select"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowNewJobForm(false);
+                        setNewJobError(null);
+                      }}
+                      style={{ background: "#FFFFFF", border: "1px solid #D9DCE3", color: "#4B5565", borderRadius: 6, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ borderTop: "1px solid #EEF0F4", marginTop: 8, paddingTop: 18 }}>
@@ -380,10 +545,10 @@ export default function CandidateImportPage() {
               </div>
             )}
             <button
-              onClick={() => router.push("/candidates")}
+              onClick={() => router.push(doneHref)}
               style={{ background: "#FF5C35", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "10px 24px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
             >
-              Done
+              {doneLabel}
             </button>
           </div>
         )}
