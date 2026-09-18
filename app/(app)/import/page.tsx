@@ -50,12 +50,13 @@ export default function CandidateImportPage() {
   const [jobId, setJobId] = useState("");
 
   // "+ Add a new job" — only offered to someone who could create one anyway
-  // (POST /api/jobs already requires manage_jobs); nobody else sees the option.
+  // (manage_jobs); nobody else sees the option. Title only: which real client the
+  // role is for isn't this operator's decision to make mid-import, so
+  // /api/jobs/quick-create resolves a standing placeholder client on its own
+  // rather than asking here — see that route for why.
   const [canManageJobs, setCanManageJobs] = useState(false);
   const [showNewJobForm, setShowNewJobForm] = useState(false);
-  const [clientOptions, setClientOptions] = useState<{ id: string; company: string }[]>([]);
   const [newJobTitle, setNewJobTitle] = useState("");
-  const [newJobClientId, setNewJobClientId] = useState("");
   const [creatingJob, setCreatingJob] = useState(false);
   const [newJobError, setNewJobError] = useState<string | null>(null);
 
@@ -74,34 +75,19 @@ export default function CandidateImportPage() {
       .catch(() => {});
   }, []);
 
-  function openNewJobForm() {
-    setShowNewJobForm(true);
-    setNewJobError(null);
-    if (clientOptions.length === 0) {
-      fetch("/api/clients/open")
-        .then((res) => (res.ok ? res.json() : { data: [] }))
-        .then((body) => setClientOptions(body.data ?? []))
-        .catch(() => {});
-    }
-  }
-
   async function createJob() {
     const title = newJobTitle.trim();
     if (!title) {
       setNewJobError("Enter a job title.");
       return;
     }
-    if (!newJobClientId) {
-      setNewJobError("Pick which client this job is for.");
-      return;
-    }
     setCreatingJob(true);
     setNewJobError(null);
     try {
-      const res = await fetch("/api/jobs", {
+      const res = await fetch("/api/jobs/quick-create", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, clientId: newJobClientId }),
+        body: JSON.stringify({ title }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error?.message ?? "Could not create the job.");
@@ -110,7 +96,6 @@ export default function CandidateImportPage() {
       setJobId(created.id);
       setShowNewJobForm(false);
       setNewJobTitle("");
-      setNewJobClientId("");
     } catch (err) {
       setNewJobError(err instanceof Error ? err.message : "Could not create the job.");
     } finally {
@@ -386,7 +371,13 @@ export default function CandidateImportPage() {
               </select>
 
               {canManageJobs && !showNewJobForm && (
-                <div onClick={openNewJobForm} style={{ fontSize: 12.5, fontWeight: 600, color: "#1A56DB", cursor: "pointer" }}>
+                <div
+                  onClick={() => {
+                    setShowNewJobForm(true);
+                    setNewJobError(null);
+                  }}
+                  style={{ fontSize: 12.5, fontWeight: 600, color: "#1A56DB", cursor: "pointer" }}
+                >
                   + Add a new job
                 </div>
               )}
@@ -403,20 +394,8 @@ export default function CandidateImportPage() {
                     value={newJobTitle}
                     onChange={(e) => setNewJobTitle(e.target.value)}
                     placeholder="Job title, e.g. QA Engineer"
-                    style={{ width: "100%", padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 8 }}
-                  />
-                  <select
-                    value={newJobClientId}
-                    onChange={(e) => setNewJobClientId(e.target.value)}
                     style={{ width: "100%", padding: "7px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 10 }}
-                  >
-                    <option value="">Select client</option>
-                    {clientOptions.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.company}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       onClick={createJob}
