@@ -30,10 +30,22 @@ export default function CandidateImportPage() {
   const [teamOptions, setTeamOptions] = useState<{ id: string; name: string }[]>([]);
   const [manualRecruiterId, setManualRecruiterId] = useState("");
 
+  // Add to Job — required. `applications.job_id` is NOT NULL, so a customer with
+  // no application ends up with a permanently disabled status/assign/follow-up
+  // (the exact bug this field exists to close). A row whose own Job column
+  // matches an existing job's title still wins over this — this is only the
+  // fallback for rows that don't name one.
+  const [jobOptions, setJobOptions] = useState<{ id: string; title: string }[]>([]);
+  const [jobId, setJobId] = useState("");
+
   useEffect(() => {
     fetch("/api/team?status=active")
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((body) => setTeamOptions(body.data ?? []))
+      .catch(() => {});
+    fetch("/api/jobs/open")
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => setJobOptions(body.data ?? []))
       .catch(() => {});
   }, []);
 
@@ -83,6 +95,10 @@ export default function CandidateImportPage() {
 
   async function confirmImport() {
     if (!batch) return;
+    if (!jobId) {
+      setError("Pick a job to add these customers to.");
+      return;
+    }
     if (assignMode === "manual" && !manualRecruiterId) {
       setError("Pick a recruiter to assign this batch to, or choose a different Assigned To option.");
       return;
@@ -99,7 +115,7 @@ export default function CandidateImportPage() {
       const res = await fetch(`/api/import/${batch.id}/confirm`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ assign }),
+        body: JSON.stringify({ assign, jobId }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error?.message ?? "Could not confirm the import.");
@@ -121,6 +137,13 @@ export default function CandidateImportPage() {
     ? `${result.imported} candidates imported successfully, ${result.skipped} skipped.` +
       (result.assigned > 0 ? ` ${result.assigned} assigned.` : "")
     : "";
+  // Should stay at 0 through this wizard (Add to Job is required above) — surfaced
+  // only in case a row's own Job column also failed to match, which the required
+  // field can't cover.
+  const noJobWarning =
+    result && result.noJobCount > 0
+      ? `${result.noJobCount} of those were imported without an application (no matching job) — their status can't be changed yet.`
+      : null;
 
   return (
     <div>
@@ -143,8 +166,15 @@ export default function CandidateImportPage() {
         {importStep === 1 && (
           <>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 6 }}>Upload CSV</div>
-            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>
-              Upload a candidate list exported from a job board or sourcing platform. Columns: Name, Phone, Email, Source, Job.
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
+              Upload a candidate list exported from a job board or sourcing platform. Recognized columns: Name (or
+              First Name / Last Name), Phone (or Mobile / Mobile Number / Contact), Email, Source, Job (or Position /
+              Applied For / Designation).
+            </div>
+            <div style={{ fontSize: 12, color: "#9AA1AC", marginBottom: 20 }}>
+              Works with exports from LinkedIn Recruiter, Naukri and Upwork, or a hand-built sheet — column order
+              doesn&apos;t matter, and a Job column only needs to match an existing job title. No Job column? You&apos;ll
+              pick one job for the whole file on the next step.
             </div>
             <div style={{ border: "2px dashed #D9DCE3", borderRadius: 10, padding: 44, textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 12 }}>Drag and drop a .csv file here, or</div>
@@ -221,6 +251,29 @@ export default function CandidateImportPage() {
                 </div>
               );
             })}
+            <div style={{ borderTop: duplicates.length ? "1px solid #EEF0F4" : "none", marginTop: duplicates.length ? 8 : 0, paddingTop: duplicates.length ? 18 : 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1D2433", marginBottom: 4 }}>
+                Add to Job <span style={{ color: "#C0392B" }}>*</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 12 }}>
+                The job every imported customer is applying to, unless their own row already names a job that
+                matches one on file — that always wins over this. Without an application, a customer&apos;s status
+                can&apos;t be changed.
+              </div>
+              <select
+                value={jobId}
+                onChange={(e) => setJobId(e.target.value)}
+                style={{ width: "100%", maxWidth: 320, padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, marginBottom: 8 }}
+              >
+                <option value="">Select job</option>
+                {jobOptions.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div style={{ borderTop: "1px solid #EEF0F4", marginTop: 8, paddingTop: 18 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#1D2433", marginBottom: 4 }}>Assigned To</div>
               <div style={{ fontSize: 12.5, color: "#6B7280", marginBottom: 12 }}>
@@ -275,7 +328,8 @@ export default function CandidateImportPage() {
 
             <button
               onClick={confirmImport}
-              disabled={busy}
+              disabled={busy || !jobId}
+              title={!jobId ? "Pick a job above first." : undefined}
               style={{
                 background: "#FF5C35",
                 border: "none",
@@ -284,9 +338,9 @@ export default function CandidateImportPage() {
                 padding: "10px 20px",
                 fontSize: 13.5,
                 fontWeight: 600,
-                cursor: busy ? "default" : "pointer",
+                cursor: busy || !jobId ? "default" : "pointer",
                 marginTop: 8,
-                opacity: busy ? 0.7 : 1,
+                opacity: busy || !jobId ? 0.7 : 1,
               }}
             >
               {busy ? "Confirming…" : "Confirm Import"}
@@ -297,7 +351,12 @@ export default function CandidateImportPage() {
         {importStep === 3 && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 8 }}>Import Complete</div>
-            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: result?.skipReasons?.length ? 14 : 24 }}>{importedLabel}</div>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: noJobWarning || result?.skipReasons?.length ? 8 : 24 }}>{importedLabel}</div>
+            {noJobWarning && (
+              <div style={{ fontSize: 12.5, color: "#B15C00", marginBottom: result?.skipReasons?.length ? 14 : 24, maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+                {noJobWarning}
+              </div>
+            )}
             {result && result.skipReasons?.length > 0 && (
               <div
                 style={{

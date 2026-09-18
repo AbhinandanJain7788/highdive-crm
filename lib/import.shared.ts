@@ -55,7 +55,19 @@ export const SKIP_REASON_LABELS: Record<ImportSkipReason, string> = {
 
 export type ImportSkipSummary = { reason: ImportSkipReason; label: string; count: number };
 
-export type ImportResult = { imported: number; skipped: number; skipReasons: ImportSkipSummary[]; assigned: number };
+// A row that DID become a customer but got no application, because its own Job
+// column didn't match a real job and no batch job was chosen either. Counted apart
+// from `skipped` (that candidate row was created, so it isn't a skipped row) but
+// worth surfacing: without an application, a customer's status/assign/follow-up
+// controls stay disabled — see /import's required "Add to Job" field, which is
+// what keeps this at 0 through the UI.
+export type ImportResult = {
+  imported: number;
+  skipped: number;
+  skipReasons: ImportSkipSummary[];
+  assigned: number;
+  noJobCount: number;
+};
 
 // POST /api/import/:id/confirm body — how the newly-created customers should be
 // assigned. "none" leaves every application in the common pool (previous behavior).

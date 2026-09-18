@@ -97,6 +97,21 @@ function BulkImportPanel() {
   const [decisions, setDecisions] = useState<Record<string, RowDecision>>({});
   const [result, setResult] = useState<ImportResult | null>(null);
 
+  // Add to Job — required for the Customers upload type. `applications.job_id` is
+  // NOT NULL, so a customer created with no matching Job column and no job picked
+  // here ends up with no application at all: an uneditable status on Customers,
+  // and it never shows up on Allocations (which reads from applications). Not
+  // needed for Allocations uploads — those only assign existing candidates.
+  const [jobOptions, setJobOptions] = useState<{ id: string; title: string }[]>([]);
+  const [jobId, setJobId] = useState("");
+
+  useEffect(() => {
+    fetch("/api/jobs/open")
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((body) => setJobOptions(body.data ?? []))
+      .catch(() => {});
+  }, []);
+
   async function handleFile(file: File) {
     setError(null);
     setBusy(true);
@@ -149,10 +164,18 @@ function BulkImportPanel() {
   }
 
   async function confirm(batchId: string) {
+    if (uploadType === "customers" && !jobId) {
+      setError("Pick a job to add these customers to.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/import/${batchId}/confirm`, { method: "POST" });
+      const res = await fetch(`/api/import/${batchId}/confirm`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jobId: uploadType === "customers" ? jobId : undefined }),
+      });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error?.message ?? "Could not confirm the import.");
       setResult(body.data);
@@ -286,7 +309,24 @@ function BulkImportPanel() {
               </div>
             );
           })}
-          <button onClick={() => confirm(batch.id)} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.7 : 1, marginTop: 8 }}>
+          <div style={{ borderTop: "1px solid #EEF0F4", marginTop: duplicates.length ? 8 : 0, paddingTop: duplicates.length ? 18 : 0, marginBottom: 16, maxWidth: 400 }}>
+            <div style={{ fontSize: 13.5, color: "#1D2433", marginBottom: 4 }}>
+              Add to Job <span style={{ color: "#C0392B" }}>*</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 10 }}>
+              A row whose own Job column matches an existing job still wins over this. Without an application, a
+              customer&apos;s status can&apos;t be changed.
+            </div>
+            <select value={jobId} onChange={(e) => setJobId(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+              <option value="">Select job</option>
+              {jobOptions.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => confirm(batch.id)} disabled={busy || !jobId} title={!jobId ? "Pick a job above first." : undefined} style={{ ...primaryBtn, opacity: busy || !jobId ? 0.7 : 1, marginTop: 8 }}>
             {busy ? "Confirming…" : "Confirm Import"}
           </button>
         </>
@@ -295,13 +335,19 @@ function BulkImportPanel() {
       {result && (
         <div style={{ textAlign: "center", padding: "20px 0" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433", marginBottom: 8 }}>Import Complete</div>
-          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: result.skipReasons?.length ? 14 : 20 }}>
+          <div style={{ fontSize: 13, color: "#6B7280", marginBottom: result.noJobCount > 0 || result.skipReasons?.length ? 8 : 20 }}>
             {result.imported} rows imported, {result.skipped} skipped.
           </div>
           {/* A bare "0 imported, 17 skipped" reads as a broken feature. The most
               common cause is a candidate sheet uploaded under the Allocations type,
               which skips every row by design — naming the reason is what tells the
               two apart without going to the server logs. */}
+          {result.noJobCount > 0 && (
+            <div style={{ fontSize: 12.5, color: "#B15C00", marginBottom: result.skipReasons?.length ? 14 : 20, maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+              {result.noJobCount} of those were imported without an application (no matching job) — their status
+              can&apos;t be changed yet.
+            </div>
+          )}
           {result.skipReasons?.length > 0 && (
             <div
               style={{

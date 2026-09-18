@@ -25,7 +25,7 @@ function parseAssignOption(body: unknown): ImportAssignOption {
 
 // POST /api/import/:id/confirm — finalizes the import and returns the count that
 // actually landed, matching Import Complete's own count on the review step. Body:
-// { assign?: { mode: "none" | "manual" | "auto", recruiterId?, method? } }.
+// { assign?: { mode: "none" | "manual" | "auto", recruiterId?, method? }, jobId?: string }.
 export async function POST(request: Request, { params }: RouteParams) {
   const guard = await requirePermission("bulk_import");
   if (guard instanceof NextResponse) return guard;
@@ -33,10 +33,14 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { id } = await params;
   const body = await request.json().catch(() => null);
   const assignOption = parseAssignOption(body);
+  // The job every created customer's application attaches to when its own Job
+  // column doesn't match an existing job — see confirmImport's `fallbackJobId`.
+  const jobIdRaw = (body as { jobId?: unknown } | null)?.jobId;
+  const jobId = typeof jobIdRaw === "string" && jobIdRaw ? jobIdRaw : null;
 
   const supabase = await createClient();
   try {
-    const result = await confirmImport(supabase, id, guard.id, assignOption);
+    const result = await confirmImport(supabase, id, guard.id, assignOption, jobId);
     return NextResponse.json({ data: result });
   } catch (err) {
     console.error(`POST /api/import/${id}/confirm failed`, err);

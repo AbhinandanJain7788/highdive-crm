@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { avatarColorFor, avatarLetterFor, statusStyles, crmStageForStatus, candidateProfileFor, type ApplicationStatus } from "@/lib/mock";
 import CandidateDetailClient from "@/app/(app)/candidates/[id]/CandidateDetailClient";
@@ -209,6 +210,26 @@ export default function AllocationsClient({
 
   return (
     <div data-screen-label="Allocations" style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 10 }}>
+        {/* Same wizard as Customers' Import CSV — the application it creates
+            lands straight in this list's "New" tab (bucket = unassigned), so
+            this is a shortcut to that flow, not a second one. */}
+        <Link
+          href="/import"
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #D9DCE3",
+            color: "#1D2433",
+            borderRadius: 6,
+            padding: "8px 14px",
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          Import CSV
+        </Link>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
           {counts.new + counts.attempted}

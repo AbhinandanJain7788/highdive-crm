@@ -69,6 +69,32 @@ function field(row: ImportRawRow, ...names: string[]): string {
   return "";
 }
 
+// Header spellings actually seen on exports from the three sourcing platforms this
+// team posts jobs to, plus this app's own Bulk Export headers (lib/data-management.ts)
+// so a file we exported can always be re-imported. Sourced from each platform's own
+// docs/exports rather than guessed:
+//   - LinkedIn Recruiter's documented CSV import columns are "First name"/"Last name"
+//     (split, not one Name column), "Email", "Phone number", "Job title".
+//   - Naukri's Resdex/applicant download uses "Candidate Name", "Email ID",
+//     "Mobile Number", "Current Location".
+//   - Upwork has no native applicant/proposal CSV export — files from it come from
+//     a browser export tool, so headers vary; the generic aliases below (name,
+//     email, phone/mobile/contact) cover the common ones.
+const PHONE_HEADERS = ["phone", "mobile", "contact", "phone number", "mobile number", "contact number", "mobile no", "contact no"];
+const EMAIL_HEADERS = ["email", "email id", "email address"];
+const JOB_HEADERS = ["job", "job title", "applied for", "position", "role", "designation"];
+
+// Most sheets have one Name column; LinkedIn's documented export splits it into
+// "First name" + "Last name" instead, so that combination is tried as a fallback
+// rather than as another alias to `field()` (which only ever reads one column).
+function resolveName(row: ImportRawRow): string {
+  const whole = field(row, "name", "full name", "candidate name");
+  if (whole) return whole;
+  const first = field(row, "first name");
+  const last = field(row, "last name");
+  return [first, last].filter(Boolean).join(" ").trim();
+}
+
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
@@ -150,8 +176,8 @@ export async function getImportDuplicates(
 
   const matched: { rowId: string; raw: ImportRawRow; candidate: DupCandidate }[] = [];
   for (const row of rows) {
-    const phone = field(row.raw, "phone", "mobile", "contact");
-    const email = field(row.raw, "email");
+    const phone = field(row.raw, ...PHONE_HEADERS);
+    const email = field(row.raw, ...EMAIL_HEADERS);
     const candidate =
       (phone && byPhone.get(normalizePhone(phone))) || (email && byEmail.get(email.toLowerCase())) || null;
     if (candidate) matched.push({ rowId: row.id, raw: row.raw, candidate });
@@ -172,9 +198,9 @@ export async function getImportDuplicates(
     return {
       rowId: m.rowId,
       raw: m.raw,
-      newName: field(m.raw, "name", "full name"),
-      newPhone: field(m.raw, "phone", "mobile", "contact"),
-      newJob: field(m.raw, "job", "job title", "applied for"),
+      newName: resolveName(m.raw),
+      newPhone: field(m.raw, ...PHONE_HEADERS),
+      newJob: field(m.raw, ...JOB_HEADERS),
       existingCandidateId: m.candidate.id,
       existingName: m.candidate.name,
       existingPhone: m.candidate.phone ?? "",
@@ -214,7 +240,13 @@ export async function confirmImport(
   supabase: SupabaseClient<Database>,
   batchId: string,
   confirmedBy: string,
-  assignOption: ImportAssignOption = { mode: "none" }
+  assignOption: ImportAssignOption = { mode: "none" },
+  // "Add to Job" from the upload wizard — the job every created customer's
+  // application attaches to when the row's own Job column doesn't match a real
+  // job. `applications.job_id` is NOT NULL, so a candidate with neither ends up
+  // with no application at all (counted in `noJobCount`, not `skipped` — the
+  // candidate row was still created).
+  fallbackJobId: string | null = null
 ): Promise<ImportResult> {
   const { data: batch, error: batchErr } = await supabase
     .from("import_batches")
@@ -233,6 +265,7 @@ export async function confirmImport(
 
   let imported = 0;
   let assigned = 0;
+  let noJobCount = 0;
   // Tallied by reason rather than as one number, so the Import Complete card can
   // say *why* nothing landed. The total is derived from this map at the end, which
   // is what keeps the headline count and the breakdown from ever disagreeing.
@@ -255,7 +288,7 @@ export async function confirmImport(
         skip("duplicate_skipped");
         continue;
       }
-      const name = field(row.raw, "name", "full name");
+      const name = resolveName(row.raw);
       if (!name) {
         skip("missing_name");
         continue;
@@ -263,10 +296,10 @@ export async function confirmImport(
       toImport.push({
         row,
         name,
-        phone: field(row.raw, "phone", "mobile", "contact"),
-        email: field(row.raw, "email"),
+        phone: field(row.raw, ...PHONE_HEADERS),
+        email: field(row.raw, ...EMAIL_HEADERS),
         source: field(row.raw, "source") || "CSV Import",
-        jobTitle: field(row.raw, "job", "job title", "applied for"),
+        jobTitle: field(row.raw, ...JOB_HEADERS),
         isDuplicate,
       });
     }
@@ -300,24 +333,35 @@ export async function confirmImport(
       }
       imported += inserted.length;
       inserted.forEach((c, idx) => {
-        if (chunk[idx].jobTitle) createdWithJob.push({ candidateId: c.id, jobTitle: chunk[idx].jobTitle });
+        createdWithJob.push({ candidateId: c.id, jobTitle: chunk[idx].jobTitle });
       });
     }
 
     // Resolve each distinct job title once, then bulk-insert applications —
     // matches the same "cache the lookup, batch the write" shape as the candidate
     // pass above.
-    const uniqueTitles = [...new Set(createdWithJob.map((c) => c.jobTitle))];
+    const uniqueTitles = [...new Set(createdWithJob.map((c) => c.jobTitle).filter(Boolean))];
     const jobByTitle = new Map<string, { id: string; stageId: string | null }>();
     for (const title of uniqueTitles) {
       const { data: job } = await supabase.from("jobs").select("id").ilike("title", title).limit(1).maybeSingle();
       if (job) jobByTitle.set(title, { id: job.id, stageId: await firstStageIdForJob(supabase, job.id) });
     }
 
+    // The batch's own "Add to Job" selection — looked up once, used for every
+    // created candidate whose row didn't name a job that matched one above.
+    let fallbackJob: { id: string; stageId: string | null } | null = null;
+    if (fallbackJobId) {
+      const { data: job } = await supabase.from("jobs").select("id").eq("id", fallbackJobId).maybeSingle();
+      if (job) fallbackJob = { id: job.id, stageId: await firstStageIdForJob(supabase, job.id) };
+    }
+
     const applicationRows = createdWithJob
       .map((c) => {
-        const job = jobByTitle.get(c.jobTitle);
-        if (!job) return null;
+        const job = (c.jobTitle && jobByTitle.get(c.jobTitle)) || fallbackJob;
+        if (!job) {
+          noJobCount++;
+          return null;
+        }
         return { candidate_id: c.candidateId, job_id: job.id, pipeline_stage_id: job.stageId, status: "new" as const };
       })
       .filter((r): r is { candidate_id: string; job_id: string; pipeline_stage_id: string | null; status: "new" } => r !== null);
@@ -379,7 +423,7 @@ export async function confirmImport(
     }
 
     for (const row of rows ?? []) {
-      const phone = field(row.raw, "phone", "mobile", "contact");
+      const phone = field(row.raw, ...PHONE_HEADERS);
       // "assigned recruiter" is the header Bulk Export emits; the others are the
       // spellings a hand-built sheet tends to use.
       const recruiterRef = field(row.raw, "recruiter", "recruiter email", "recruiter name", "assign to", "assigned recruiter");
@@ -451,8 +495,8 @@ export async function confirmImport(
     // The breakdown goes into the activity log too: the Import Complete card is
     // gone as soon as the operator navigates away, and "why did nothing import
     // last Tuesday" is exactly the question the log exists to answer.
-    metadata: { uploadType: batch.upload_type, imported, skipped, skipReasons, assigned },
+    metadata: { uploadType: batch.upload_type, imported, skipped, skipReasons, assigned, noJobCount },
   });
 
-  return { imported, skipped, skipReasons, assigned };
+  return { imported, skipped, skipReasons, assigned, noJobCount };
 }
