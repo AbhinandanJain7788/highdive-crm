@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
+import { createAdminClient } from "@/lib/supabase/server";
 import { rangeOverflow, escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
 import type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition } from "@/lib/calls.shared";
 
@@ -136,6 +137,137 @@ function buildQuery(
   return query;
 }
 
+// Keeps only the last N digits of a phone string, so "+91 98201 34567" and
+// "918201234567"/"8201234567" all reduce to the same comparison key regardless
+// of country-code prefix or the seed's display spacing.
+function lastDigits(value: string, n = 10): string {
+  return value.replace(/\D/g, "").slice(-n);
+}
+
+// The Android pipeline leaves `candidate_id` null whenever its own number match
+// failed (claude.md's boundary means this codebase can't fix that matching or
+// write the link back) — but this is a pure read-time lookup against
+// `candidates.phone` to show the right name instead of "Unknown Caller". It never
+// writes to `calls`, never sets `candidate_id`, and never touches the pipeline.
+async function resolveNamesByNumber(
+  supabase: SupabaseClient<Database>,
+  numbers: string[]
+): Promise<Map<string, string>> {
+  const targets = [...new Set(numbers.map((n) => lastDigits(n)).filter((d) => d.length >= 7))];
+  if (!targets.length) return new Map();
+
+  const patterns = targets.map((d) => `phone.ilike.%${d.split("").join("%")}%`);
+  const { data, error } = await supabase.from("candidates").select("name, phone").or(patterns.join(","));
+  if (error || !data) return new Map();
+
+  const nameByDigits = new Map<string, string>();
+  for (const c of data) {
+    if (!c.phone) continue;
+    const digits = lastDigits(c.phone);
+    if (!nameByDigits.has(digits)) nameByDigits.set(digits, c.name);
+  }
+
+  const result = new Map<string, string>();
+  for (const number of numbers) {
+    const name = nameByDigits.get(lastDigits(number));
+    if (name) result.set(number, name);
+  }
+  return result;
+}
+
+async function applyNameFallback(supabase: SupabaseClient<Database>, rows: CallRow[]): Promise<void> {
+  const unresolved = rows.filter((r) => !r.candidateId && r.phone && r.phone !== "--");
+  if (!unresolved.length) return;
+  const nameByNumber = await resolveNamesByNumber(supabase, unresolved.map((r) => r.phone));
+  for (const r of unresolved) {
+    const name = nameByNumber.get(r.phone);
+    if (name) r.candidateName = name;
+  }
+}
+
+// The Android app uploads every recording straight to this public Storage bucket,
+// but doesn't reliably write `calls.storage_path`/`b2_url` back onto the row it
+// already inserted — confirmed against the live bucket, where uploaded files exist
+// for calls whose `storage_path` is still null. This resolves the display URL by
+// nearest recording time instead, purely at read time: it never writes storage_path
+// back onto `calls`.
+const RECORDING_BUCKET = "call-recordings";
+const RECORDING_FOLDER = "recordings";
+// Filenames are "recording_<epoch-ms>.wav" — that embedded timestamp tracks the
+// call's own call_time far more tightly (~3-25s, checked against the live table)
+// than the object's storage `created_at` (upload time, which drifts 20-95s behind
+// depending on upload delay) — so the filename, not the metadata, is the key.
+const RECORDING_FILENAME_RE = /recording_(\d+)\.\w+$/;
+const RECORDING_MATCH_WINDOW_MS = 30_000;
+
+type RecordingObject = { path: string; recordedAtMs: number };
+
+let recordingObjectsCache: { at: number; objects: RecordingObject[] } | null = null;
+
+async function listRecordingObjects(): Promise<RecordingObject[]> {
+  if (recordingObjectsCache && Date.now() - recordingObjectsCache.at < 30_000) {
+    return recordingObjectsCache.objects;
+  }
+  // storage.objects has no SELECT policy for the signed-in (anon-key) role, only
+  // the Android app's own authenticated INSERT — listing needs the admin client
+  // even though the bucket itself is public (public only makes the object payload
+  // fetchable by URL, not its metadata listable via the API).
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from(RECORDING_BUCKET)
+    .list(RECORDING_FOLDER, { limit: 500, sortBy: { column: "created_at", order: "desc" } });
+  if (error || !data) return recordingObjectsCache?.objects ?? [];
+
+  const objects: RecordingObject[] = [];
+  for (const o of data) {
+    const match = RECORDING_FILENAME_RE.exec(o.name);
+    if (!match) continue;
+    objects.push({ path: `${RECORDING_FOLDER}/${o.name}`, recordedAtMs: Number(match[1]) });
+  }
+  recordingObjectsCache = { at: Date.now(), objects };
+  return objects;
+}
+
+// Nearest-by-time, one object per call: each call claims its closest upload within
+// the window, closest match first, so two calls a few seconds apart can't both grab
+// the same file.
+async function matchRecordingPaths(calls: { id: number; callTime: string }[]): Promise<Map<number, string>> {
+  const objects = await listRecordingObjects();
+  if (!objects.length) return new Map();
+
+  const candidates = calls
+    .map((c) => {
+      const callMs = new Date(c.callTime).getTime();
+      if (!Number.isFinite(callMs)) return null;
+      let best: { path: string; diff: number } | null = null;
+      for (const o of objects) {
+        const diff = Math.abs(o.recordedAtMs - callMs);
+        if (diff <= RECORDING_MATCH_WINDOW_MS && (!best || diff < best.diff)) best = { path: o.path, diff };
+      }
+      return best ? { id: c.id, path: best.path, diff: best.diff } : null;
+    })
+    .filter((x): x is { id: number; path: string; diff: number } => x !== null)
+    .sort((a, b) => a.diff - b.diff);
+
+  const claimed = new Set<string>();
+  const result = new Map<number, string>();
+  for (const c of candidates) {
+    if (claimed.has(c.path)) continue;
+    claimed.add(c.path);
+    result.set(c.id, c.path);
+  }
+  return result;
+}
+
+async function applyRecordingFallback(rows: CallRow[]): Promise<void> {
+  const missing = rows.filter((r) => !r.hasRecording);
+  if (!missing.length) return;
+  const matches = await matchRecordingPaths(missing.map((r) => ({ id: r.id, callTime: r.calledAtRaw })));
+  for (const r of missing) {
+    if (matches.has(r.id)) r.hasRecording = true;
+  }
+}
+
 export async function getCallRows(
   supabase: SupabaseClient<Database>,
   options: CallListOptions
@@ -157,14 +289,30 @@ export async function getCallRows(
   if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
-  return { rows: (data ?? []).map(toCallRow), total: count ?? 0 };
+  const rows = (data ?? []).map(toCallRow);
+  await applyNameFallback(supabase, rows);
+  await applyRecordingFallback(rows);
+  return { rows, total: count ?? 0 };
 }
 
 export async function getCallById(supabase: SupabaseClient<Database>, id: number): Promise<CallDetail | null> {
   const { data, error } = await supabase.from("calls").select(CALL_SELECT).eq("id", id).maybeSingle<RawCall>();
   if (error) throw error;
   if (!data) return null;
-  return toCallDetail(data);
+  const detail = toCallDetail(data);
+  await applyNameFallback(supabase, [detail]);
+
+  if (!detail.hasRecording) {
+    const matches = await matchRecordingPaths([{ id: detail.id, callTime: detail.calledAtRaw }]);
+    const path = matches.get(detail.id);
+    if (path) {
+      detail.hasRecording = true;
+      detail.storagePath = path;
+      detail.b2Url = supabase.storage.from(RECORDING_BUCKET).getPublicUrl(path).data.publicUrl;
+    }
+  }
+
+  return detail;
 }
 
 // PATCH /api/calls/:id — notes only. Every other column belongs to the Android
