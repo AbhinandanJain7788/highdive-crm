@@ -814,6 +814,132 @@ export type Database = {
           },
         ]
       }
+      interviews: {
+        Row: {
+          application_id: string
+          candidate_id: string
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          duration_minutes: number
+          id: string
+          interviewer_id: string | null
+          location: string | null
+          note: string | null
+          scheduled_at: string
+          scheduled_by: string | null
+          status: Database["public"]["Enums"]["interview_status"]
+        }
+        Insert: {
+          application_id: string
+          candidate_id: string
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          interviewer_id?: string | null
+          location?: string | null
+          note?: string | null
+          scheduled_at: string
+          scheduled_by?: string | null
+          status?: Database["public"]["Enums"]["interview_status"]
+        }
+        Update: {
+          application_id?: string
+          candidate_id?: string
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          interviewer_id?: string | null
+          location?: string | null
+          note?: string | null
+          scheduled_at?: string
+          scheduled_by?: string | null
+          status?: Database["public"]["Enums"]["interview_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "v_allocations"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "v_interactions"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "v_rechurn"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "v_allocations"
+            referencedColumns: ["candidate_id"]
+          },
+          {
+            foreignKeyName: "interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "v_interactions"
+            referencedColumns: ["candidate_id"]
+          },
+          {
+            foreignKeyName: "interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "v_rechurn"
+            referencedColumns: ["candidate_id"]
+          },
+          {
+            foreignKeyName: "interviews_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_interviewer_id_fkey"
+            columns: ["interviewer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interviews_scheduled_by_fkey"
+            columns: ["scheduled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           client_id: string
@@ -1421,6 +1547,7 @@ export type Database = {
         | "review"
         | "completed"
         | "failed"
+      interview_status: "scheduled" | "completed" | "cancelled" | "no_show"
       job_status: "open" | "on_hold" | "closed"
       live_status: "on_call" | "idle" | "on_break" | "offline"
       report_status: "queued" | "ready" | "failed"
@@ -1580,6 +1707,7 @@ export const Constants = {
         "completed",
         "failed",
       ],
+      interview_status: ["scheduled", "completed", "cancelled", "no_show"],
       job_status: ["open", "on_hold", "closed"],
       live_status: ["on_call", "idle", "on_break", "offline"],
       report_status: ["queued", "ready", "failed"],

@@ -5,6 +5,8 @@ import { statusStyles } from "@/lib/mock/styles";
 import { APPLICATION_STATUSES } from "@/lib/candidates.shared";
 import { CheckboxListPopover, MoreFiltersPanel, IconButton, FunnelIcon, selectStyle } from "@/components/ListFilters";
 import type { FollowUpRow } from "@/lib/followups.shared";
+import type { InterviewRow } from "@/lib/interviews.shared";
+import { interviewStatusStyles } from "@/lib/interviews.shared";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -45,15 +47,18 @@ export default function CalendarClient({
   initialYear,
   initialMonth,
   initialEvents,
+  initialInterviewEvents,
 }: {
   initialYear: number;
   initialMonth: number; // 1-12
   initialEvents: FollowUpRow[];
+  initialInterviewEvents: InterviewRow[];
 }) {
   const today = useMemo(() => istCalendarParts(new Date().toISOString()), []);
   const [view, setView] = useState({ year: initialYear, month: initialMonth - 1 }); // month kept 0-indexed locally
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [events, setEvents] = useState<FollowUpRow[]>(initialEvents);
+  const [interviewEvents, setInterviewEvents] = useState<InterviewRow[]>(initialInterviewEvents);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -70,12 +75,20 @@ export default function CalendarClient({
     const controller = new AbortController();
     setLoading(true);
     setLoadError(null);
-    fetch(`/api/follow-ups/calendar?year=${view.year}&month=${view.month + 1}`, { signal: controller.signal })
-      .then((res) => {
+    Promise.all([
+      fetch(`/api/follow-ups/calendar?year=${view.year}&month=${view.month + 1}`, { signal: controller.signal }).then((res) => {
         if (!res.ok) throw new Error("Could not load the calendar.");
         return res.json();
+      }),
+      fetch(`/api/interviews/calendar?year=${view.year}&month=${view.month + 1}`, { signal: controller.signal }).then((res) => {
+        if (!res.ok) throw new Error("Could not load the calendar.");
+        return res.json();
+      }),
+    ])
+      .then(([followUpBody, interviewBody]) => {
+        setEvents(followUpBody.data ?? []);
+        setInterviewEvents(interviewBody.data ?? []);
       })
-      .then((body) => setEvents(body.data ?? []))
       .catch((err) => {
         if ((err as Error).name !== "AbortError") setLoadError(err instanceof Error ? err.message : "Could not load the calendar.");
       })
@@ -95,6 +108,18 @@ export default function CalendarClient({
     }
     return map;
   }, [events, view.year, view.month]);
+
+  const interviewsByDay = useMemo(() => {
+    const map = new Map<number, InterviewRow[]>();
+    for (const iv of interviewEvents) {
+      const parts = istCalendarParts(iv.scheduledAtRaw);
+      if (parts.year !== view.year || parts.month !== view.month) continue;
+      const list = map.get(parts.day) ?? [];
+      list.push(iv);
+      map.set(parts.day, list);
+    }
+    return map;
+  }, [interviewEvents, view.year, view.month]);
 
   function toggleStatus(id: string) {
     setSelectedStatuses((prev) => {
@@ -126,14 +151,15 @@ export default function CalendarClient({
     const inMonth = d.getMonth() === view.month && d.getFullYear() === view.year;
     const day = d.getDate();
     const list = inMonth ? eventsByDay.get(day) ?? [] : [];
+    const interviewList = inMonth ? interviewsByDay.get(day) ?? [] : [];
     const isToday = inMonth && isCurrentMonth && day === today.day;
     const isSelected = inMonth && selectedDay === day;
     const highlighted = isSelected || (isToday && selectedDay === null);
     cells.push({
       day,
       inMonth,
-      hasEvents: list.length > 0,
-      count: list.length,
+      hasEvents: list.length + interviewList.length > 0,
+      count: list.length + interviewList.length,
       cellStyle: highlighted ? { background: "#FF5C35" } : {},
       numColor: highlighted ? "#FFFFFF" : inMonth ? "#1D2433" : "#9AA1AC",
       dotColor: highlighted ? "#FFFFFF" : "#2563EB",
@@ -148,11 +174,14 @@ export default function CalendarClient({
   const panelEvents = baseList.filter(
     (ev) => selectedStatuses.size === 0 || (ev.applicationStatus && selectedStatuses.has(ev.applicationStatus))
   );
+  const todayInterviews = isCurrentMonth ? interviewsByDay.get(today.day) ?? [] : [];
+  const panelInterviews = selectedDay !== null ? interviewsByDay.get(selectedDay) ?? [] : todayInterviews;
+  const panelTotal = panelEvents.length + panelInterviews.length;
   const panelTitle =
     selectedDay !== null
-      ? `${selectedDay} ${MONTH_NAMES[view.month]}  ${panelEvents.length} Event${panelEvents.length === 1 ? "" : "s"}`
+      ? `${selectedDay} ${MONTH_NAMES[view.month]}  ${panelTotal} Event${panelTotal === 1 ? "" : "s"}`
       : "Quick Look - Upcoming Schedule";
-  const noEvents = panelEvents.length === 0;
+  const noEvents = panelTotal === 0;
   const showTodayLabel = selectedDay === null;
 
   const activeFilterCount = selectedStatuses.size > 0 ? 1 : 0;
@@ -267,7 +296,7 @@ export default function CalendarClient({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {showTodayLabel && <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>Today ({panelEvents.length})</div>}
+            {showTodayLabel && <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>Today ({panelTotal})</div>}
             {panelEvents.map((ev) => {
               const style = ev.applicationStatus ? statusStyles[ev.applicationStatus] : null;
               const done = ev.followUpStatus === "completed";
@@ -343,7 +372,47 @@ export default function CalendarClient({
                 </div>
               );
             })}
-            {noEvents && <div style={{ fontSize: 13, color: "#9AA1AC", padding: "20px 0" }}>No follow-ups scheduled for this date.</div>}
+            {panelInterviews.map((iv) => {
+              const badge = interviewStatusStyles[iv.status];
+              return (
+                <div
+                  key={iv.id}
+                  style={{
+                    background: "#FFFFFF",
+                    border: "1px solid #E7E9EE",
+                    borderLeft: "3px solid #7C3AED",
+                    borderRadius: 8,
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>{iv.candidateName}</div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "2px 8px",
+                        borderRadius: 20,
+                        background: badge.bg,
+                        color: badge.color,
+                      }}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#4B5565" }}>
+                    Interview — {iv.clientName} · {iv.jobTitle ?? "--"}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 8 }}>
+                    <span style={{ fontSize: 13, color: "#4B5565" }}>{timePart(iv.scheduledAt)}</span>
+                    <span style={{ fontSize: 13, color: "#4B5565" }}>
+                      Interviewer: {iv.interviewerName ?? "Unassigned"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {noEvents && <div style={{ fontSize: 13, color: "#9AA1AC", padding: "20px 0" }}>No follow-ups or interviews scheduled for this date.</div>}
           </div>
         </div>
       </div>

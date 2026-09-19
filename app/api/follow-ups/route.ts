@@ -34,6 +34,7 @@ export async function GET(request: Request) {
 
   const options = {
     search: searchParams.get("search") ?? undefined,
+    candidateId: searchParams.get("candidateId") ?? undefined,
     statuses,
     dueFrom: searchParams.get("dueFrom") ?? undefined,
     dueTo: searchParams.get("dueTo") ?? undefined,

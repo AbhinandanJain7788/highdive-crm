@@ -6,6 +6,15 @@ import { statusStyles, avatarColorFor, avatarLetterFor, type ApplicationStatus }
 import { callDispositionStyles, fmtDuration } from "@/lib/mock/styles";
 import type { CandidateDetail } from "@/lib/candidates.shared";
 import type { CallRow } from "@/lib/calls.shared";
+import type { FollowUpRow } from "@/lib/followups.shared";
+import type { InterviewRow } from "@/lib/interviews.shared";
+import { interviewStatusStyles } from "@/lib/interviews.shared";
+
+const followUpStatusStyles: Record<FollowUpRow["followUpStatus"], { bg: string; color: string; label: string }> = {
+  pending: { bg: "#FFF4E5", color: "#B15C00", label: "Pending" },
+  completed: { bg: "#E7F6EC", color: "#1E7F43", label: "Completed" },
+  cancelled: { bg: "#F4F5F8", color: "#6B7280", label: "Cancelled" },
+};
 
 const statusKeys = Object.keys(statusStyles) as ApplicationStatus[];
 
@@ -58,7 +67,7 @@ export default function CandidateDetailClient({
   const [assignError, setAssignError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!canAssign) return;
+    if (!canAssign && !canEdit) return;
     let cancelled = false;
     fetch("/api/team?status=active")
       .then((res) => (res.ok ? res.json() : { data: [] }))
@@ -69,7 +78,7 @@ export default function CandidateDetailClient({
     return () => {
       cancelled = true;
     };
-  }, [canAssign]);
+  }, [canAssign, canEdit]);
 
   async function submitAssign() {
     if (!primary) return;
@@ -133,6 +142,146 @@ export default function CandidateDetailClient({
   const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
+  // Follow-Up History — surfaces every follow-up (pending, completed, cancelled)
+  // scheduled against this candidate, since previously the only way to find one
+  // after marking it complete on /follow-ups was to leave the candidate page,
+  // go to the global list, and search for them again.
+  const [followUps, setFollowUps] = useState<FollowUpRow[]>([]);
+  const [followUpsLoading, setFollowUpsLoading] = useState(true);
+  const [followUpsError, setFollowUpsError] = useState<string | null>(null);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+
+  async function loadFollowUps() {
+    setFollowUpsLoading(true);
+    setFollowUpsError(null);
+    try {
+      const res = await fetch(`/api/follow-ups?candidateId=${candidate.id}&sort=due-desc&pageSize=50`);
+      if (!res.ok) throw new Error("Could not load follow-up history.");
+      const body = await res.json();
+      setFollowUps(body.data ?? []);
+    } catch (err) {
+      setFollowUpsError(err instanceof Error ? err.message : "Could not load follow-up history.");
+    } finally {
+      setFollowUpsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadFollowUps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate.id]);
+
+  async function completeFollowUp(id: string) {
+    setCompletingId(id);
+    try {
+      const res = await fetch(`/api/follow-ups/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not complete follow-up.");
+      }
+      await loadFollowUps();
+    } catch (err) {
+      setFollowUpsError(err instanceof Error ? err.message : "Could not complete follow-up.");
+    } finally {
+      setCompletingId(null);
+    }
+  }
+
+  // Interviews — schedule against the candidate's primary application; the
+  // client is derived server-side from the application's job (jobs.client_id),
+  // so this form only needs an interviewer and a date/time.
+  const [interviews, setInterviews] = useState<InterviewRow[]>([]);
+  const [interviewsLoading, setInterviewsLoading] = useState(true);
+  const [interviewsError, setInterviewsError] = useState<string | null>(null);
+
+  const [interviewAt, setInterviewAt] = useState("");
+  const [interviewerId, setInterviewerId] = useState("");
+  const [interviewLocation, setInterviewLocation] = useState("");
+  const [scheduling2, setScheduling2] = useState(false);
+  const [interviewNotice, setInterviewNotice] = useState<string | null>(null);
+  const [updatingInterviewId, setUpdatingInterviewId] = useState<string | null>(null);
+
+  async function loadInterviews() {
+    setInterviewsLoading(true);
+    setInterviewsError(null);
+    try {
+      const res = await fetch(`/api/interviews?candidateId=${candidate.id}`);
+      if (!res.ok) throw new Error("Could not load interviews.");
+      const body = await res.json();
+      setInterviews(body.data ?? []);
+    } catch (err) {
+      setInterviewsError(err instanceof Error ? err.message : "Could not load interviews.");
+    } finally {
+      setInterviewsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadInterviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate.id]);
+
+  async function scheduleInterview() {
+    if (!primary || !interviewAt) return;
+    const atMs = new Date(interviewAt).getTime();
+    if (Number.isNaN(atMs)) {
+      setInterviewsError("Pick a valid date and time.");
+      return;
+    }
+    setScheduling2(true);
+    setInterviewsError(null);
+    setInterviewNotice(null);
+    try {
+      const res = await fetch("/api/interviews", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          applicationId: primary.id,
+          scheduledAt: new Date(atMs).toISOString(),
+          interviewerId: interviewerId || undefined,
+          location: interviewLocation || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not schedule the interview.");
+      }
+      setInterviewNotice("Interview scheduled.");
+      setInterviewAt("");
+      setInterviewerId("");
+      setInterviewLocation("");
+      await loadInterviews();
+    } catch (err) {
+      setInterviewsError(err instanceof Error ? err.message : "Could not schedule the interview.");
+    } finally {
+      setScheduling2(false);
+    }
+  }
+
+  async function setInterviewStatus(id: string, status: "completed" | "cancelled" | "no_show") {
+    setUpdatingInterviewId(id);
+    try {
+      const res = await fetch(`/api/interviews/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not update the interview.");
+      }
+      await loadInterviews();
+    } catch (err) {
+      setInterviewsError(err instanceof Error ? err.message : "Could not update the interview.");
+    } finally {
+      setUpdatingInterviewId(null);
+    }
+  }
+
   async function scheduleFollowUp() {
     if (!primary || !dueAt) return;
     const dueAtMs = new Date(dueAt).getTime();
@@ -162,6 +311,7 @@ export default function CandidateDetailClient({
       setDueAt("");
       setIsRecurring(false);
       setRecurrenceRule("");
+      await loadFollowUps();
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Could not schedule the follow-up.");
     } finally {
@@ -637,7 +787,240 @@ export default function CandidateDetailClient({
             {scheduleNotice && <div style={{ fontSize: 12.5, color: "#1E7F43" }}>{scheduleNotice}</div>}
             {scheduleError && <div style={{ fontSize: 12.5, color: "#B42318" }}>{scheduleError}</div>}
           </div>
+
+          <div style={{ marginTop: 16, borderTop: "1px solid #EEF0F4", paddingTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", marginBottom: 8 }}>
+              Follow-Up History
+            </div>
+            {followUpsError && <div style={{ fontSize: 12.5, color: "#B42318", marginBottom: 8 }}>{followUpsError}</div>}
+            {followUpsLoading ? (
+              <div style={{ fontSize: 12.5, color: "#9AA1AC", padding: "10px 0" }}>Loading…</div>
+            ) : followUps.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: "#9AA1AC", padding: "10px 0" }}>No follow-ups scheduled yet.</div>
+            ) : (
+              followUps.map((fu) => {
+                const badge = followUpStatusStyles[fu.followUpStatus];
+                return (
+                  <div
+                    key={fu.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      padding: "10px 0",
+                      borderBottom: "1px solid #F4F5F8",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 12.5, color: "#1D2433", fontWeight: 600 }}>{fu.dueAt}</div>
+                      <div style={{ fontSize: 11.5, color: "#9AA1AC", marginTop: 2 }}>
+                        {fu.assignToName ? `Assigned to ${fu.assignToName}` : "Unassigned"}
+                        {fu.note ? ` — ${fu.note}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          borderRadius: 20,
+                          background: badge.bg,
+                          color: badge.color,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {badge.label}
+                      </span>
+                      {fu.followUpStatus === "pending" && canEdit && (
+                        <button
+                          onClick={() => completeFollowUp(fu.id)}
+                          disabled={completingId === fu.id}
+                          title="Mark Complete"
+                          style={{
+                            background: "#FF5C35",
+                            border: "none",
+                            color: "#FFFFFF",
+                            borderRadius: 6,
+                            padding: "4px 10px",
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            cursor: completingId === fu.id ? "default" : "pointer",
+                            opacity: completingId === fu.id ? 0.7 : 1,
+                          }}
+                        >
+                          {completingId === fu.id ? "…" : "✓"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
+      </div>
+
+      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20, marginTop: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Interviews</div>
+
+        {canEdit && (
+          <div style={{ border: "1px solid #E7E9EE", borderRadius: 8, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", marginBottom: 8 }}>
+              Schedule Interview
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+              <input
+                type="datetime-local"
+                value={interviewAt}
+                disabled={!primary}
+                onChange={(e) => setInterviewAt(e.target.value)}
+                title={primary ? undefined : "This candidate has no application to schedule an interview against."}
+                style={{
+                  flex: "1 1 200px",
+                  padding: "9px 12px",
+                  border: "1px solid #D9DCE3",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  background: !primary ? "#F7F8FA" : "#FFFFFF",
+                  color: !primary ? "#9AA1AC" : "#1D2433",
+                }}
+              />
+              <select
+                value={interviewerId}
+                disabled={!primary}
+                onChange={(e) => setInterviewerId(e.target.value)}
+                style={{ flex: "1 1 160px", padding: "9px 12px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13 }}
+              >
+                <option value="">Assign Interviewer</option>
+                {teamOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={interviewLocation}
+                disabled={!primary}
+                onChange={(e) => setInterviewLocation(e.target.value)}
+                placeholder="Location / Link (optional)"
+                style={{ flex: "1 1 160px", padding: "9px 12px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13 }}
+              />
+              <button
+                onClick={scheduleInterview}
+                disabled={!primary || !interviewAt || scheduling2}
+                style={{
+                  background: !primary || !interviewAt ? "#F7F8FA" : "#FF5C35",
+                  border: !primary || !interviewAt ? "1px solid #E7E9EE" : "none",
+                  color: !primary || !interviewAt ? "#9AA1AC" : "#FFFFFF",
+                  borderRadius: 6,
+                  padding: "9px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: !primary || !interviewAt || scheduling2 ? "default" : "pointer",
+                }}
+              >
+                {scheduling2 ? "Scheduling…" : "Schedule"}
+              </button>
+            </div>
+            {primary && (
+              <div style={{ fontSize: 11.5, color: "#9AA1AC" }}>
+                For {primary.job?.title ?? "this application"} — appears on the Calendar once scheduled.
+              </div>
+            )}
+            {interviewNotice && <div style={{ fontSize: 12.5, color: "#1E7F43", marginTop: 6 }}>{interviewNotice}</div>}
+          </div>
+        )}
+
+        {interviewsError && <div style={{ fontSize: 12.5, color: "#B42318", marginBottom: 8 }}>{interviewsError}</div>}
+        {interviewsLoading ? (
+          <div style={{ fontSize: 12.5, color: "#9AA1AC", padding: "10px 0" }}>Loading…</div>
+        ) : interviews.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "#9AA1AC", padding: "10px 0" }}>No interviews scheduled yet.</div>
+        ) : (
+          interviews.map((iv) => {
+            const badge = interviewStatusStyles[iv.status];
+            return (
+              <div
+                key={iv.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 0",
+                  borderBottom: "1px solid #F4F5F8",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12.5, color: "#1D2433", fontWeight: 600 }}>{iv.scheduledAt}</div>
+                  <div style={{ fontSize: 11.5, color: "#9AA1AC", marginTop: 2 }}>
+                    {iv.clientName} — {iv.jobTitle ?? "--"}
+                    {iv.interviewerName ? ` · Interviewer: ${iv.interviewerName}` : " · No interviewer assigned"}
+                    {iv.location ? ` · ${iv.location}` : ""}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: badge.bg,
+                      color: badge.color,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {badge.label}
+                  </span>
+                  {iv.status === "scheduled" && canEdit && (
+                    <>
+                      <button
+                        onClick={() => setInterviewStatus(iv.id, "completed")}
+                        disabled={updatingInterviewId === iv.id}
+                        title="Mark Completed"
+                        style={{
+                          background: "#FF5C35",
+                          border: "none",
+                          color: "#FFFFFF",
+                          borderRadius: 6,
+                          padding: "4px 10px",
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          cursor: updatingInterviewId === iv.id ? "default" : "pointer",
+                          opacity: updatingInterviewId === iv.id ? 0.7 : 1,
+                        }}
+                      >
+                        {updatingInterviewId === iv.id ? "…" : "✓"}
+                      </button>
+                      <button
+                        onClick={() => setInterviewStatus(iv.id, "cancelled")}
+                        disabled={updatingInterviewId === iv.id}
+                        title="Cancel Interview"
+                        style={{
+                          background: "#FFFFFF",
+                          border: "1px solid #D9DCE3",
+                          color: "#6B7280",
+                          borderRadius: 6,
+                          padding: "4px 10px",
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          cursor: updatingInterviewId === iv.id ? "default" : "pointer",
+                          opacity: updatingInterviewId === iv.id ? 0.7 : 1,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
