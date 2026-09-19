@@ -136,8 +136,16 @@ export default function CandidateDetailClient({
   // working Schedule action needs an actual parseable due_at, not a string a
   // natural-language date parser would have to guess at.
   const [dueAt, setDueAt] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceRule, setRecurrenceRule] = useState("");
+  // Follow-up frequency — replaces the old bare "Recurring" checkbox + freeform
+  // text box with the same Default/Custom split the tier-cadence picker uses,
+  // minus the per-tier defaults and weekday selector (nothing in this schema
+  // ties a candidate to a tier or a specific contact day, so those would just be
+  // decoration). "weekly" is the one-click default; "custom" takes a day count.
+  const [frequency, setFrequency] = useState<"once" | "weekly" | "custom">("once");
+  const [customDays, setCustomDays] = useState("14");
+  const isRecurring = frequency !== "once";
+  const recurrenceRule =
+    frequency === "weekly" ? "Weekly" : frequency === "custom" ? `Every ${customDays || "14"} days` : "";
   const [scheduling, setScheduling] = useState(false);
   const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
@@ -300,7 +308,7 @@ export default function CandidateDetailClient({
         body: JSON.stringify({
           applicationId: primary.id,
           dueAt: new Date(dueAtMs).toISOString(),
-          ...(isRecurring ? { recurrenceRule: recurrenceRule || "Weekly" } : {}),
+          ...(isRecurring ? { recurrenceRule } : {}),
         }),
       });
       if (!res.ok) {
@@ -309,8 +317,8 @@ export default function CandidateDetailClient({
       }
       setScheduleNotice("Follow-up scheduled.");
       setDueAt("");
-      setIsRecurring(false);
-      setRecurrenceRule("");
+      setFrequency("once");
+      setCustomDays("14");
       await loadFollowUps();
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : "Could not schedule the follow-up.");
@@ -770,19 +778,49 @@ export default function CandidateDetailClient({
               </button>
             </div>
             {primary && canEdit && (
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#4B5565", marginBottom: 8, cursor: "pointer" }}>
-                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
-                Recurring
-                {isRecurring && (
-                  <input
-                    type="text"
-                    value={recurrenceRule}
-                    onChange={(e) => setRecurrenceRule(e.target.value)}
-                    placeholder="e.g. Weekly"
-                    style={{ marginLeft: 6, padding: "5px 8px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5, width: 120 }}
-                  />
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Follow-up frequency</div>
+                <div style={{ display: "flex", gap: 4, background: "#F4F5F8", borderRadius: 6, padding: 3, maxWidth: 320 }}>
+                  {(
+                    [
+                      { key: "once", label: "One-time" },
+                      { key: "weekly", label: "Weekly" },
+                      { key: "custom", label: "Custom" },
+                    ] as const
+                  ).map((opt) => (
+                    <div
+                      key={opt.key}
+                      onClick={() => setFrequency(opt.key)}
+                      style={{
+                        flex: 1,
+                        textAlign: "center",
+                        padding: "6px 0",
+                        borderRadius: 5,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        background: frequency === opt.key ? "#FFFFFF" : "transparent",
+                        color: frequency === opt.key ? "#1D2433" : "#6B7280",
+                      }}
+                    >
+                      {opt.label}
+                    </div>
+                  ))}
+                </div>
+                {frequency === "custom" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12.5, color: "#4B5565" }}>
+                    Repeat every
+                    <input
+                      type="number"
+                      min={1}
+                      value={customDays}
+                      onChange={(e) => setCustomDays(e.target.value)}
+                      style={{ width: 60, padding: "5px 8px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12.5 }}
+                    />
+                    days
+                  </div>
                 )}
-              </label>
+              </div>
             )}
             {scheduleNotice && <div style={{ fontSize: 12.5, color: "#1E7F43" }}>{scheduleNotice}</div>}
             {scheduleError && <div style={{ fontSize: 12.5, color: "#B42318" }}>{scheduleError}</div>}
