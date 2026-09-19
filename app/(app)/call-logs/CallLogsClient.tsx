@@ -77,9 +77,16 @@ export default function CallLogsClient({
   const [openSortPopover, setOpenSortPopover] = useState(false);
 
   // ---- Playback ----
-  const [playingCallId, setPlayingCallId] = useState<number | null>(null);
+  // activeCallId is which call's recording is loaded (playing OR paused) —
+  // separate from isPlaying so pausing/resuming reuses the same <audio> element
+  // instead of re-assigning `src`, which would otherwise restart from 0 every time.
+  const [activeCallId, setActiveCallId] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [audioUrlCache, setAudioUrlCache] = useState<Record<number, string | null>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const progressRef = useRef<HTMLDivElement | null>(null);
 
   // ---- "Unattributed" tab state ----
   const [unattributedRows, setUnattributedRows] = useState<UnattributedCallRow[]>(initialUnattributedRows);
@@ -244,18 +251,58 @@ export default function CallLogsClient({
     return url ?? null;
   }
 
-  async function togglePlay(call: CallRow) {
+  async function startPlayback(call: CallRow) {
     if (!call.hasRecording) return;
-    if (playingCallId === call.id) {
-      audioRef.current?.pause();
-      setPlayingCallId(null);
-      return;
-    }
     const url = await resolveRecordingUrl(call);
     if (!url || !audioRef.current) return;
     audioRef.current.src = url;
+    setCurrentTime(0);
+    setDuration(0);
+    setActiveCallId(call.id);
     audioRef.current.play().catch(() => {});
-    setPlayingCallId(call.id);
+    setIsPlaying(true);
+  }
+
+  function togglePlayPause() {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    }
+  }
+
+  function stopPlayback() {
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
+    setActiveCallId(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }
+
+  function seekBy(deltaSeconds: number) {
+    if (!audioRef.current) return;
+    const total = duration || audioRef.current.duration || 0;
+    audioRef.current.currentTime = Math.min(Math.max(audioRef.current.currentTime + deltaSeconds, 0), total);
+    setCurrentTime(audioRef.current.currentTime);
+  }
+
+  function seekToClientX(clientX: number) {
+    if (!audioRef.current || !progressRef.current) return;
+    const total = duration || audioRef.current.duration || 0;
+    if (!total) return;
+    const rect = progressRef.current.getBoundingClientRect();
+    const fraction = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+    audioRef.current.currentTime = fraction * total;
+    setCurrentTime(fraction * total);
+  }
+
+  function fmtClock(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
@@ -329,7 +376,16 @@ export default function CallLogsClient({
 
   return (
     <div data-screen-label="Call Logs">
-      <audio ref={audioRef} onEnded={() => setPlayingCallId(null)} style={{ display: "none" }} />
+      <audio
+        ref={audioRef}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        }}
+        style={{ display: "none" }}
+      />
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
@@ -490,15 +546,15 @@ export default function CallLogsClient({
               <div>Actions</div>
             </div>
             {enrichedRows.map((l) => (
+              <div key={l.id}>
               <div
-                key={l.id}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 0.9fr 1.6fr",
                   gap: 10,
                   alignItems: "center",
                   padding: "11px 16px",
-                  borderBottom: "1px solid #F4F5F8",
+                  borderBottom: activeCallId === l.id ? "none" : "1px solid #F4F5F8",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -549,11 +605,11 @@ export default function CallLogsClient({
                 <div style={{ display: "flex", gap: 8 }}>
                   {l.hasRecording ? (
                     <button
-                      onClick={() => togglePlay(l)}
+                      onClick={() => (activeCallId === l.id ? togglePlayPause() : startPlayback(l))}
                       style={{
                         border: "1px solid #D9DCE3",
-                        background: playingCallId === l.id ? "#FFF0EA" : "#FFFFFF",
-                        color: playingCallId === l.id ? "#FF5C35" : "#4B5565",
+                        background: activeCallId === l.id ? "#FFF0EA" : "#FFFFFF",
+                        color: activeCallId === l.id ? "#FF5C35" : "#4B5565",
                         borderRadius: 6,
                         padding: "7px 14px",
                         fontSize: 12.5,
@@ -565,10 +621,17 @@ export default function CallLogsClient({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      <svg width="11" height="11" viewBox="0 0 12 12">
-                        <path d="M2.5 1.5l7 4.5-7 4.5z" fill={playingCallId === l.id ? "#FF5C35" : "#4B5565"} />
-                      </svg>
-                      {playingCallId === l.id ? "Playing…" : "Play Recording"}
+                      {activeCallId === l.id && isPlaying ? (
+                        <svg width="11" height="11" viewBox="0 0 12 12">
+                          <rect x="2" y="1.5" width="3" height="9" fill="#FF5C35" />
+                          <rect x="7" y="1.5" width="3" height="9" fill="#FF5C35" />
+                        </svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 12 12">
+                          <path d="M2.5 1.5l7 4.5-7 4.5z" fill={activeCallId === l.id ? "#FF5C35" : "#4B5565"} />
+                        </svg>
+                      )}
+                      {activeCallId === l.id ? (isPlaying ? "Playing…" : "Paused") : "Play Recording"}
                     </button>
                   ) : (
                     <button
@@ -618,6 +681,149 @@ export default function CallLogsClient({
                   </button>
                   <CallButton phone={l.phone} />
                 </div>
+              </div>
+              {activeCallId === l.id && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px 14px",
+                    borderBottom: "1px solid #F4F5F8",
+                    background: "#FFF7F4",
+                  }}
+                >
+                  <button
+                    onClick={stopPlayback}
+                    title="Close player"
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: "50%",
+                      border: "1px solid #E7E9EE",
+                      background: "#FFFFFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                      color: "#9AA1AC",
+                    }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12">
+                      <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="#9AA1AC" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => seekBy(-5)}
+                    title="Back 5 seconds"
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      border: "1px solid #E7E9EE",
+                      background: "#FFFFFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24">
+                      <path d="M11 5V1L6 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H3c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="#4B5565" />
+                      <text x="12" y="16" textAnchor="middle" fontSize="7" fill="#4B5565" fontWeight="700">5</text>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={togglePlayPause}
+                    title={isPlaying ? "Pause" : "Play"}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      border: "none",
+                      background: "#FF5C35",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {isPlaying ? (
+                      <svg width="13" height="13" viewBox="0 0 12 12">
+                        <rect x="2" y="1.5" width="3" height="9" fill="#FFFFFF" />
+                        <rect x="7" y="1.5" width="3" height="9" fill="#FFFFFF" />
+                      </svg>
+                    ) : (
+                      <svg width="13" height="13" viewBox="0 0 12 12">
+                        <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#FFFFFF" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => seekBy(5)}
+                    title="Forward 5 seconds"
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      border: "1px solid #E7E9EE",
+                      background: "#FFFFFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24">
+                      <path d="M13 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" fill="#4B5565" />
+                      <text x="13" y="16" textAnchor="middle" fontSize="7" fill="#4B5565" fontWeight="700">5</text>
+                    </svg>
+                  </button>
+                  <span style={{ fontSize: 11.5, color: "#9AA1AC", minWidth: 32, textAlign: "right" }}>{fmtClock(currentTime)}</span>
+                  <div
+                    ref={progressRef}
+                    onClick={(e) => seekToClientX(e.clientX)}
+                    style={{
+                      flex: 1,
+                      height: 6,
+                      background: "#EEF0F5",
+                      borderRadius: 3,
+                      position: "relative",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        bottom: 0,
+                        left: 0,
+                        width: `${duration ? Math.min((currentTime / duration) * 100, 100) : 0}%`,
+                        background: "#FF5C35",
+                        borderRadius: 3,
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: `${duration ? Math.min((currentTime / duration) * 100, 100) : 0}%`,
+                        transform: "translate(-50%, -50%)",
+                        width: 12,
+                        height: 12,
+                        borderRadius: "50%",
+                        background: "#FF5C35",
+                        boxShadow: "0 0 0 3px #FFF7F4, 0 0 0 4px #FF5C35",
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 11.5, color: "#9AA1AC", minWidth: 32 }}>{fmtClock(duration)}</span>
+                </div>
+              )}
               </div>
             ))}
             {enrichedRows.length === 0 && (
