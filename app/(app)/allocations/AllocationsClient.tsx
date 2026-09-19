@@ -35,6 +35,7 @@ import {
 } from "@/components/ListFilters";
 import { PAGE_SIZES, APPLICATION_STATUSES } from "@/lib/candidates.shared";
 import type { AllocationRow, AllocationBucket } from "@/lib/allocations.shared";
+import AddCustomerModal from "@/components/AddCustomerModal";
 
 type AllocRange = "Overall" | "Last 30 Days" | "Select Range";
 
@@ -61,6 +62,7 @@ export default function AllocationsClient({
   canAssign: boolean;
 }) {
   const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
 
   const [bucket, setBucket] = useState<AllocationBucket>("new");
   const [range, setRange] = useState<AllocRange>("Overall");
@@ -210,7 +212,7 @@ export default function AllocationsClient({
 
   return (
     <div data-screen-label="Allocations" style={{ position: "relative" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 10 }}>
         {/* Same wizard as Customers' Import CSV — the application it creates
             lands straight in this list's "New" tab (bucket = unassigned), so
             this is a shortcut to that flow, not a second one. */}
@@ -229,6 +231,23 @@ export default function AllocationsClient({
         >
           Import CSV
         </Link>
+        {canEdit && (
+          <button
+            onClick={() => setShowAddCustomer(true)}
+            style={{
+              background: "#FF5C35",
+              border: "none",
+              color: "#FFFFFF",
+              borderRadius: 6,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + Add Customer
+          </button>
+        )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
@@ -544,6 +563,10 @@ export default function AllocationsClient({
             setRows((prev) => prev.map((r) => (r.applicationId === applicationId ? { ...r, assignToName: name } : r)))
           }
         />
+      )}
+
+      {showAddCustomer && (
+        <AddCustomerModal onClose={() => setShowAddCustomer(false)} onCreated={() => window.location.reload()} />
       )}
     </div>
   );

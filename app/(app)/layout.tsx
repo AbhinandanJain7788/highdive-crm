@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#F4F5F8" }}>
       <Sidebar permissions={profile.permissions} roleName={profile.roleName ?? "—"} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <Topbar userName={profile.name} roleName={profile.roleName ?? "—"} permissions={profile.permissions} />
+        <Topbar userName={profile.name} roleName={profile.roleName ?? "—"} />
         <ScrollReset>{children}</ScrollReset>
       </div>
     </div>
