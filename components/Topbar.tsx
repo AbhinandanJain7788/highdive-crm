@@ -1,11 +1,13 @@
 import Link from "next/link";
+import AddCustomerButton from "@/components/AddCustomerButton";
 
 type TopbarProps = {
   userName: string;
   roleName: string;
+  permissions: string[];
 };
 
-export default function Topbar({ userName, roleName }: TopbarProps) {
+export default function Topbar({ userName, roleName, permissions }: TopbarProps) {
   const initial = userName.trim().charAt(0).toUpperCase() || "?";
   return (
     <div
@@ -21,6 +23,7 @@ export default function Topbar({ userName, roleName }: TopbarProps) {
       }}
     >
       <div style={{ flex: 1 }} />
+      {permissions.includes("manage_candidates") && <AddCustomerButton />}
       <Link
         href="/notifications"
         title="Notifications"

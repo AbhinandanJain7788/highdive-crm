@@ -38,6 +38,7 @@ import {
   type DateRange,
 } from "@/components/ListFilters";
 import { PAGE_SIZES, type CandidateRow } from "@/lib/candidates.shared";
+import AddCustomerModal from "@/components/AddCustomerModal";
 
 // Customers-specific default — Created On/Assign To/Source plus the two new
 // contact-tracking columns the user asked for, without changing Allocations'
@@ -98,6 +99,7 @@ export default function CandidatesClient({
   const [openSortPopover, setOpenSortPopover] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [showManageColumns, setShowManageColumns] = useState(false);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
 
   const [rows, setRows] = useState<CandidateRow[]>(initialRows);
   const [total, setTotal] = useState(initialTotal);
@@ -247,6 +249,7 @@ export default function CandidatesClient({
           Import CSV
         </button>
         <button
+          onClick={() => setShowAddCustomer(true)}
           style={{
             background: "#FF5C35",
             border: "none",
@@ -578,6 +581,10 @@ export default function CandidatesClient({
             setShowManageColumns(false);
           }}
         />
+      )}
+
+      {showAddCustomer && (
+        <AddCustomerModal onClose={() => setShowAddCustomer(false)} onCreated={() => window.location.reload()} />
       )}
     </div>
   );
