@@ -20,6 +20,8 @@ import {
 } from "@/components/ListFilters";
 import { PAGE_SIZES, type FollowUpRow } from "@/lib/followups.shared";
 
+type Outcome = NonNullable<FollowUpRow["applicationStatus"]>;
+
 type FuTab = "pending" | "upcoming";
 
 const FU_SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -66,7 +68,77 @@ export default function FollowUpsClient({
   const [openSortPopover, setOpenSortPopover] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [completingId, setCompletingId] = useState<string | null>(null);
+
+  // The tick used to complete a follow-up with no visible confirmation and no
+  // way to record what actually happened on the call. It now opens this modal —
+  // status is set here (a single, editable field on the row instead of a
+  // separate screen), the follow-up is marked done, and a next one can be
+  // scheduled in the same step instead of navigating to Candidate Detail.
+  const [logRow, setLogRow] = useState<FollowUpRow | null>(null);
+  const [logOutcome, setLogOutcome] = useState<Outcome | "">("");
+  const [logNote, setLogNote] = useState("");
+  const [logNextDue, setLogNextDue] = useState("");
+  const [logSubmitting, setLogSubmitting] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
+
+  function openLog(row: FollowUpRow) {
+    setLogRow(row);
+    setLogOutcome(row.applicationStatus ?? "");
+    setLogNote("");
+    setLogNextDue("");
+    setLogError(null);
+  }
+
+  async function submitLog() {
+    if (!logRow) return;
+    setLogSubmitting(true);
+    setLogError(null);
+    try {
+      const completeRes = await fetch(`/api/follow-ups/${logRow.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "completed", ...(logNote.trim() ? { note: logNote } : {}) }),
+      });
+      if (!completeRes.ok) {
+        const body = await completeRes.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not update this follow-up.");
+      }
+
+      if (logOutcome && logOutcome !== logRow.applicationStatus && logRow.applicationId) {
+        const statusRes = await fetch(`/api/applications/${logRow.applicationId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ status: logOutcome }),
+        });
+        if (!statusRes.ok) {
+          const body = await statusRes.json().catch(() => null);
+          throw new Error(body?.error?.message ?? "Could not update the candidate's status.");
+        }
+      }
+
+      if (logNextDue && logRow.applicationId) {
+        const dueMs = new Date(logNextDue).getTime();
+        if (Number.isNaN(dueMs)) throw new Error("Pick a valid next follow-up date.");
+        const scheduleRes = await fetch("/api/follow-ups", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ applicationId: logRow.applicationId, dueAt: new Date(dueMs).toISOString() }),
+        });
+        if (!scheduleRes.ok) {
+          const body = await scheduleRes.json().catch(() => null);
+          throw new Error(body?.error?.message ?? "Could not schedule the next follow-up.");
+        }
+      }
+
+      setRows((prev) => prev.filter((r) => r.id !== logRow.id));
+      setCounts((prev) => ({ ...prev, [tab]: Math.max(0, prev[tab] - 1) }));
+      setLogRow(null);
+    } catch (err) {
+      setLogError(err instanceof Error ? err.message : "Could not save this follow-up.");
+    } finally {
+      setLogSubmitting(false);
+    }
+  }
 
   const statusKey = [...selectedStatuses].join(",");
   const activeFilterCount = selectedStatuses.size > 0 ? 1 : 0;
@@ -125,32 +197,6 @@ export default function FollowUpsClient({
       else next.add(id);
       return next;
     });
-  }
-
-  // The "+" quick-action icon is present but unbound on every list row across
-  // Allocations/Interactions/Follow-ups in the signed-off HTML — repurposed here
-  // as "Mark Complete" since Phase 5 Checkpoint 4 requires a working complete
-  // action and the source design defines no dedicated control for it.
-  async function completeFollowUp(row: FollowUpRow) {
-    setCompletingId(row.id);
-    setLoadError(null);
-    try {
-      const res = await fetch(`/api/follow-ups/${row.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: "completed" }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error?.message ?? "Could not complete follow-up.");
-      }
-      setRows((prev) => prev.filter((r) => r.id !== row.id));
-      setCounts((prev) => ({ ...prev, [tab]: Math.max(0, prev[tab] - 1) }));
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Could not complete follow-up.");
-    } finally {
-      setCompletingId(null);
-    }
   }
 
   const noFollowUps = !loading && rows.length === 0;
@@ -310,9 +356,8 @@ export default function FollowUpsClient({
               <div style={{ fontSize: 13, color: "#9AA1AC" }}>{fu.sourcedByName ?? "--"}</div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
-                  onClick={() => completeFollowUp(fu)}
-                  disabled={completingId === fu.id}
-                  title="Mark Complete"
+                  onClick={() => openLog(fu)}
+                  title="Update Status"
                   style={{
                     width: 30,
                     height: 30,
@@ -325,11 +370,10 @@ export default function FollowUpsClient({
                     justifyContent: "center",
                     fontSize: 16,
                     lineHeight: 1,
-                    cursor: completingId === fu.id ? "default" : "pointer",
-                    opacity: completingId === fu.id ? 0.6 : 1,
+                    cursor: "pointer",
                   }}
                 >
-                  {completingId === fu.id ? "…" : "✓"}
+                  ✓
                 </button>
                 <div
                   style={{
@@ -360,6 +404,88 @@ export default function FollowUpsClient({
           <div style={{ padding: "44px 0", textAlign: "center", fontSize: 13, color: "#9AA1AC" }}>No follow-ups to display</div>
         )}
       </div>
+
+      {logRow && (
+        <div
+          onClick={() => (logSubmitting ? null : setLogRow(null))}
+          style={{ position: "fixed", inset: 0, background: "rgba(29,36,51,0.4)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 440, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 12, padding: 24 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433" }}>Update Follow-Up</div>
+              <div onClick={() => setLogRow(null)} style={{ cursor: "pointer", fontSize: 20, color: "#9AA1AC", lineHeight: 1 }}>
+                ×
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 18 }}>{logRow.candidateName}</div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Status</div>
+            <select
+              value={logOutcome}
+              onChange={(e) => setLogOutcome(e.target.value as Outcome)}
+              style={{ width: "100%", padding: "9px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13, marginBottom: 16 }}
+            >
+              <option value="">Leave unchanged</option>
+              {statusOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Next follow-up date (optional)</div>
+            <input
+              type="datetime-local"
+              value={logNextDue}
+              onChange={(e) => setLogNextDue(e.target.value)}
+              style={{ width: "100%", padding: "9px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13, marginBottom: 4 }}
+            />
+            <div style={{ fontSize: 11.5, color: "#9AA1AC", marginBottom: 16 }}>Leave blank if this follow-up is done for good.</div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Note (optional)</div>
+            <textarea
+              value={logNote}
+              onChange={(e) => setLogNote(e.target.value)}
+              placeholder="Anything specific from the conversation…"
+              rows={3}
+              style={{ width: "100%", padding: "9px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13, marginBottom: 16, fontFamily: "inherit", resize: "vertical" }}
+            />
+
+            {logError && <div style={{ fontSize: 12.5, color: "#B42318", marginBottom: 12 }}>{logError}</div>}
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setLogRow(null)}
+                disabled={logSubmitting}
+                style={{ flex: 1, background: "#FFFFFF", border: "1px solid #D9DCE3", color: "#4B5565", borderRadius: 6, padding: "10px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitLog}
+                disabled={logSubmitting}
+                style={{
+                  flex: 1,
+                  background: "#FF5C35",
+                  border: "none",
+                  color: "#FFFFFF",
+                  borderRadius: 6,
+                  padding: "10px 0",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: logSubmitting ? "default" : "pointer",
+                  opacity: logSubmitting ? 0.7 : 1,
+                }}
+              >
+                {logSubmitting ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
