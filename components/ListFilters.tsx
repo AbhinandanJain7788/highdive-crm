@@ -30,9 +30,9 @@ export const FIXED_COLUMN_LABELS = ["Name & Phone Number", "Status"];
 // companyName/currentDesignation/lastCtc/age — as reading a mock profile keyed by seed ids
 // that renders "--" for every real uuid. Decision: drop the unbacked columns from the UI
 // rather than add 16 new schema columns nothing else in the product needs yet.
-export type ColumnId = "email" | "notes" | "createdOn" | "assignTo" | "source";
+export type ColumnId = "email" | "notes" | "createdOn" | "assignTo" | "source" | "lastContact" | "nextDue";
 
-export const ALL_COLUMN_IDS: ColumnId[] = ["email", "notes", "createdOn", "assignTo", "source"];
+export const ALL_COLUMN_IDS: ColumnId[] = ["email", "notes", "createdOn", "assignTo", "source", "lastContact", "nextDue"];
 
 export const COLUMN_LABELS: Record<ColumnId, string> = {
   email: "Email",
@@ -40,6 +40,8 @@ export const COLUMN_LABELS: Record<ColumnId, string> = {
   createdOn: "Created On",
   assignTo: "Assign To",
   source: "Source",
+  lastContact: "Last Contact",
+  nextDue: "Next Due",
 };
 
 // At most 10 of the customizable columns can be on at once.
@@ -881,7 +883,12 @@ const cellMuted: React.CSSProperties = { fontSize: 12.5, color: "#9AA1AC", overf
 // Rows may come from the mock seed or from the live `candidates` table. Live rows
 // carry a resolved `recruiterName`/`email`, which win when present — `userName()` and
 // the mock profiles are keyed by seed ids ("c1", "u3") and can't resolve a real uuid.
-type ColumnCellRow = MockCandidate & { recruiterName?: string | null; email?: string | null };
+type ColumnCellRow = MockCandidate & {
+  recruiterName?: string | null;
+  email?: string | null;
+  lastContact?: string | null;
+  nextDue?: string | null;
+};
 
 export function renderColumnCell(id: ColumnId, c: ColumnCellRow) {
   const p = candidateProfileFor(c.id);
@@ -896,6 +903,10 @@ export function renderColumnCell(id: ColumnId, c: ColumnCellRow) {
       return <div style={cellMuted} title={c.notes || undefined}>{c.notes || "--"}</div>;
     case "email":
       return <div style={cellText}>{c.email ?? p.email}</div>;
+    case "lastContact":
+      return <div style={cellMuted}>{c.lastContact || "--"}</div>;
+    case "nextDue":
+      return <div style={cellMuted}>{c.nextDue || "--"}</div>;
   }
 }
 

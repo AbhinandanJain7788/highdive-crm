@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
-import { rangeOverflow, escapeFilterValue, formatDisplayDate, phoneSearchPattern, type Pagination } from "@/lib/format";
+import { rangeOverflow, escapeFilterValue, formatDisplayDate, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
 import type { CandidateRow, CandidateDetail } from "@/lib/candidates.shared";
 
 type ApplicationStatus = Database["public"]["Enums"]["application_status"];
@@ -100,7 +100,49 @@ function toCandidateRow(c: RawCandidate): CandidateRow {
     stageId: app?.stage?.id ?? null,
     stageName: app?.stage?.name ?? null,
     applicationCount: c.applications?.length ?? 0,
+    lastContact: null,
+    nextDue: null,
   };
+}
+
+// Batch-fetched per page rather than per row — a page is at most 50 candidates
+// (PAGE_SIZES' largest), so two `in()` queries beat 50 round-trips. Each map
+// keeps only the first row it sees per candidate_id, so the ordering on the
+// query (newest call first / soonest pending due date first) is what decides
+// which one wins.
+async function attachContactInfo(
+  supabase: SupabaseClient<Database>,
+  rows: CandidateRow[]
+): Promise<CandidateRow[]> {
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return rows;
+
+  const [{ data: calls, error: callsErr }, { data: dues, error: duesErr }] = await Promise.all([
+    supabase.from("calls").select("candidate_id, call_time").in("candidate_id", ids).order("call_time", { ascending: false }),
+    supabase
+      .from("follow_ups")
+      .select("candidate_id, due_at")
+      .in("candidate_id", ids)
+      .eq("status", "pending")
+      .order("due_at", { ascending: true }),
+  ]);
+  if (callsErr) throw callsErr;
+  if (duesErr) throw duesErr;
+
+  const lastContactMap = new Map<string, string>();
+  for (const call of calls ?? []) {
+    if (call.candidate_id && !lastContactMap.has(call.candidate_id)) lastContactMap.set(call.candidate_id, call.call_time);
+  }
+  const nextDueMap = new Map<string, string>();
+  for (const fu of dues ?? []) {
+    if (!nextDueMap.has(fu.candidate_id)) nextDueMap.set(fu.candidate_id, fu.due_at);
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    lastContact: lastContactMap.has(r.id) ? formatDisplayDateTime(lastContactMap.get(r.id)!) : null,
+    nextDue: nextDueMap.has(r.id) ? formatDisplayDateTime(nextDueMap.get(r.id)!) : null,
+  }));
 }
 
 export async function getCandidateRows(
@@ -144,7 +186,8 @@ export async function getCandidateRows(
   if (overflow) return { rows: [], total: overflow.total };
   if (error) throw error;
 
-  return { rows: (data ?? []).map(toCandidateRow), total: count ?? 0 };
+  const rows = await attachContactInfo(supabase, (data ?? []).map(toCandidateRow));
+  return { rows, total: count ?? 0 };
 }
 
 export async function getCandidateDetail(
@@ -164,7 +207,7 @@ export async function getCandidateDetail(
   if (error) throw error;
   if (!data) return null;
 
-  const row = toCandidateRow(data);
+  const [row] = await attachContactInfo(supabase, [toCandidateRow(data)]);
   const applications = [...(data.applications ?? [])]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .map((a) => ({

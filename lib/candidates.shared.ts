@@ -50,6 +50,11 @@ export type CandidateRow = {
   stageId: string | null;
   stageName: string | null;
   applicationCount: number;
+  // Most recent call and nearest pending follow-up, both across every call/
+  // follow-up on the candidate (not scoped to the primary application) — null
+  // when there's no call yet / nothing scheduled.
+  lastContact: string | null;
+  nextDue: string | null;
 };
 
 export type CandidateApplication = {

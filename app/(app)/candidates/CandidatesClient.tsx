@@ -13,7 +13,6 @@ import {
 } from "@/lib/mock";
 import {
   COLUMN_LABELS,
-  DEFAULT_COLUMNS,
   statusOptionsFor,
   matchesLocation,
   priorityOf,
@@ -39,6 +38,11 @@ import {
   type DateRange,
 } from "@/components/ListFilters";
 import { PAGE_SIZES, type CandidateRow } from "@/lib/candidates.shared";
+
+// Customers-specific default — Created On/Assign To/Source plus the two new
+// contact-tracking columns the user asked for, without changing Allocations'
+// own default (it derives from ListFilters' shared DEFAULT_COLUMNS).
+const CUSTOMER_DEFAULT_COLUMNS: ColumnId[] = ["createdOn", "assignTo", "source", "lastContact", "nextDue"];
 
 type CustomerRange = "Overall" | "Last 30 Days" | "Select Range";
 
@@ -88,7 +92,7 @@ export default function CandidatesClient({
   const [appliedDateRange, setAppliedDateRange] = useState<DateRange | null>(null);
 
   const [sortKey, setSortKey] = useState<SortKey>("created-new");
-  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(DEFAULT_COLUMNS);
+  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(CUSTOMER_DEFAULT_COLUMNS);
 
   const [openStatusPopover, setOpenStatusPopover] = useState(false);
   const [openSortPopover, setOpenSortPopover] = useState(false);
