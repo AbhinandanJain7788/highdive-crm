@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { statusStyles } from "@/lib/mock/styles";
 import { APPLICATION_STATUSES } from "@/lib/candidates.shared";
 import { CheckboxListPopover, MoreFiltersPanel, IconButton, FunnelIcon, selectStyle } from "@/components/ListFilters";
@@ -30,9 +31,40 @@ const monthNavBtnStyle: React.CSSProperties = {
   padding: 0,
 };
 
-// year/month/day are the IST calendar date the row's due_at falls on (0-indexed
-// month, to line up with JS Date's own grid math); time is the "11:00 AM" prefix
-// already produced by formatDisplayDateTime.
+const selectInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "9px 10px",
+  border: "1px solid #D9DCE3",
+  borderRadius: 6,
+  fontSize: 13,
+  fontFamily: "inherit",
+  background: "#fff",
+};
+
+const modalBtnSecondary: React.CSSProperties = {
+  flex: 1,
+  background: "#FFFFFF",
+  border: "1px solid #D9DCE3",
+  color: "#4B5565",
+  borderRadius: 6,
+  padding: "10px 0",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const modalBtnPrimary: React.CSSProperties = {
+  flex: 1,
+  background: "#FF5C35",
+  border: "none",
+  color: "#FFFFFF",
+  borderRadius: 6,
+  padding: "10px 0",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
 function istCalendarParts(iso: string): { year: number; month: number; day: number; time: string } {
   const d = new Date(iso);
   const ist = new Date(d.getTime() + IST_OFFSET_MS);
@@ -43,6 +75,13 @@ function timePart(displayDateTime: string): string {
   return displayDateTime.split(",")[0]?.trim() ?? "";
 }
 
+function dateTimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function CalendarClient({
   initialYear,
   initialMonth,
@@ -50,12 +89,13 @@ export default function CalendarClient({
   initialInterviewEvents,
 }: {
   initialYear: number;
-  initialMonth: number; // 1-12
+  initialMonth: number;
   initialEvents: FollowUpRow[];
   initialInterviewEvents: InterviewRow[];
 }) {
+  const router = useRouter();
   const today = useMemo(() => istCalendarParts(new Date().toISOString()), []);
-  const [view, setView] = useState({ year: initialYear, month: initialMonth - 1 }); // month kept 0-indexed locally
+  const [view, setView] = useState({ year: initialYear, month: initialMonth - 1 });
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [events, setEvents] = useState<FollowUpRow[]>(initialEvents);
   const [interviewEvents, setInterviewEvents] = useState<InterviewRow[]>(initialInterviewEvents);
@@ -65,6 +105,26 @@ export default function CalendarClient({
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [openStatusPopover, setOpenStatusPopover] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
+  const [editingFollowUp, setEditingFollowUp] = useState<FollowUpRow | null>(null);
+  const [editingInterview, setEditingInterview] = useState<InterviewRow | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [fuStatus, setFuStatus] = useState("");
+  const [fuDueAt, setFuDueAt] = useState("");
+  const [fuAssignTo, setFuAssignTo] = useState("");
+  const [fuNote, setFuNote] = useState("");
+
+  const [ivScheduledAt, setIvScheduledAt] = useState("");
+  const [ivInterviewerId, setIvInterviewerId] = useState("");
+  const [ivStatus, setIvStatus] = useState("");
+  const [ivDuration, setIvDuration] = useState("");
+  const [ivLocation, setIvLocation] = useState("");
+  const [ivNote, setIvNote] = useState("");
 
   const firstRender = useMemo(() => ({ current: true }), []);
   useEffect(() => {
@@ -96,6 +156,21 @@ export default function CalendarClient({
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.year, view.month]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUsersLoading(true);
+    fetch("/api/team")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body) => {
+        if (cancelled) return;
+        const rows = (body.data ?? []) as { id: string; name: string }[];
+        setUsers(rows);
+      })
+      .catch(() => { if (!cancelled) setUsers([]); })
+      .finally(() => { if (!cancelled) setUsersLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<number, FollowUpRow[]>();
@@ -138,6 +213,140 @@ export default function CalendarClient({
       return { year: v.year, month: next };
     });
     setSelectedDay(null);
+  }
+
+  function openFollowUpModal(ev: FollowUpRow) {
+    setSubmitError(null);
+    setFuStatus(ev.followUpStatus);
+    setFuDueAt(dateTimeLocalValue(ev.dueAtRaw));
+    setFuAssignTo(ev.assignToId ?? "");
+    setFuNote(ev.note ?? "");
+    setEditingFollowUp(ev);
+  }
+
+  function openInterviewModal(iv: InterviewRow) {
+    setSubmitError(null);
+    setIvScheduledAt(dateTimeLocalValue(iv.scheduledAtRaw));
+    setIvInterviewerId(iv.interviewerId ?? "");
+    setIvStatus(iv.status);
+    setIvDuration(String(iv.durationMinutes));
+    setIvLocation(iv.location ?? "");
+    setIvNote(iv.note ?? "");
+    setEditingInterview(iv);
+  }
+
+  async function submitFollowUp() {
+    if (!editingFollowUp || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (fuStatus !== editingFollowUp.followUpStatus) body.status = fuStatus;
+      if (fuDueAt) body.dueAt = new Date(fuDueAt).toISOString();
+      if (fuAssignTo !== (editingFollowUp.assignToId ?? "")) body.assignTo = fuAssignTo || null;
+      if (fuNote !== (editingFollowUp.note ?? "")) body.note = fuNote;
+
+      const res = await fetch(`/api/follow-ups/${editingFollowUp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: { message?: string } }).error?.message ?? "Failed to save.");
+      }
+      const json = await res.json();
+      const updated = json.data as FollowUpRow;
+      setEvents((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      setEditingFollowUp(null);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to save.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelFollowUp() {
+    if (!editingFollowUp || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch(`/api/follow-ups/${editingFollowUp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: { message?: string } }).error?.message ?? "Failed to cancel.");
+      }
+      const json = await res.json();
+      const updated = json.data as FollowUpRow;
+      setEvents((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      setEditingFollowUp(null);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to cancel.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitInterview() {
+    if (!editingInterview || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (ivScheduledAt !== dateTimeLocalValue(editingInterview.scheduledAtRaw)) body.scheduledAt = new Date(ivScheduledAt).toISOString();
+      if (ivInterviewerId !== (editingInterview.interviewerId ?? "")) body.interviewerId = ivInterviewerId || null;
+      if (ivStatus !== editingInterview.status) body.status = ivStatus;
+      if (Number(ivDuration) !== editingInterview.durationMinutes) body.durationMinutes = Number(ivDuration);
+      if (ivLocation !== (editingInterview.location ?? "")) body.location = ivLocation;
+      if (ivNote !== (editingInterview.note ?? "")) body.note = ivNote;
+
+      const res = await fetch(`/api/interviews/${editingInterview.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: { message?: string } }).error?.message ?? "Failed to save.");
+      }
+      const json = await res.json();
+      const updated = json.data as InterviewRow;
+      setInterviewEvents((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      setEditingInterview(null);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to save.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelInterview() {
+    if (!editingInterview || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch(`/api/interviews/${editingInterview.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: { message?: string } }).error?.message ?? "Failed to cancel.");
+      }
+      const json = await res.json();
+      const updated = json.data as InterviewRow;
+      setInterviewEvents((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      setEditingInterview(null);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to cancel.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const firstOfMonth = new Date(view.year, view.month, 1);
@@ -185,6 +394,37 @@ export default function CalendarClient({
   const showTodayLabel = selectedDay === null;
 
   const activeFilterCount = selectedStatuses.size > 0 ? 1 : 0;
+
+  const CandidateLink: React.FC<{ id: string; name: string }> = ({ id, name }) => (
+    <span
+      onClick={() => router.push(`/candidates/${id}`)}
+      style={{ fontWeight: 600, color: "#1D4FD8", cursor: "pointer", textDecoration: "none", fontSize: 14 }}
+      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+    >
+      {name}
+    </span>
+  );
+
+  const iconBtnStyle: React.CSSProperties = {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    border: "1px solid #E7E9EE",
+    background: "#FFFFFF",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    padding: 0,
+    flexShrink: 0,
+  };
+
+  const iconBtnDangerStyle: React.CSSProperties = {
+    ...iconBtnStyle,
+    borderColor: "#FECACA",
+    background: "#FEF2F2",
+  };
 
   return (
     <div>
@@ -315,9 +555,9 @@ export default function CalendarClient({
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>{ev.candidateName}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                      <CandidateLink id={ev.candidateId} name={ev.candidateName} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#2563EB" }} />
                         <span style={{ fontSize: 13, color: "#1D2433" }}>{style?.label ?? ev.applicationStatus ?? "--"}</span>
                         {done && (
@@ -335,22 +575,24 @@ export default function CalendarClient({
                         )}
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 26, flexWrap: "wrap" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <svg width="14" height="14" viewBox="0 0 16 16">
                           <circle cx="8" cy="5.5" r="2.6" fill="none" stroke="#6B7280" strokeWidth="1.3" />
                           <path d="M2.8 14c0-2.6 2.3-4.4 5.2-4.4s5.2 1.8 5.2 4.4" fill="none" stroke="#6B7280" strokeWidth="1.3" />
                         </svg>
-                        <span style={{ fontSize: 13, color: "#4B5565" }}>{ev.assignedByName ?? "--"}</span>
+                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Scheduled by</span>
+                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{ev.assignedByName ?? "--"}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <svg width="14" height="14" viewBox="0 0 16 16">
                           <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="#6B7280" strokeWidth="1.3" />
                           <circle cx="6" cy="7" r="1.8" fill="none" stroke="#6B7280" strokeWidth="1.2" />
                         </svg>
-                        <span style={{ fontSize: 13, color: "#4B5565" }}>{ev.assignToName ?? "--"}</span>
+                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Assigned to</span>
+                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{ev.assignToName ?? "--"}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <svg width="14" height="14" viewBox="0 0 16 16">
                           <circle cx="8" cy="8" r="6.4" fill="none" stroke="#6B7280" strokeWidth="1.3" />
                           <path d="M8 4.6V8l2.6 1.6" fill="none" stroke="#6B7280" strokeWidth="1.3" />
@@ -359,14 +601,17 @@ export default function CalendarClient({
                       </div>
                     </div>
                   </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                    <button type="button" onClick={() => openFollowUpModal(ev)} title="Edit follow-up" style={iconBtnStyle}>
+                      <svg width="14" height="14" viewBox="0 0 16 16"><path d="M11.5 1.5l3 3L5 14l-3-3z" fill="none" stroke="#4B5565" strokeWidth="1.3" strokeLinejoin="round"/><path d="M10.3 4.3l1.2-1.2" fill="none" stroke="#4B5565" strokeWidth="1.3"/></svg>
+                    </button>
+                    <button type="button" onClick={() => openFollowUpModal(ev)} title="Cancel follow-up" style={iconBtnDangerStyle}>
+                      <svg width="14" height="14" viewBox="0 0 16 16"><line x1="4" y1="4" x2="12" y2="12" stroke="#B42318" strokeWidth="1.6" strokeLinecap="round"/><line x1="12" y1="4" x2="4" y2="12" stroke="#B42318" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
                   <div style={{ width: 36, height: 36, borderRadius: "50%", border: "1px solid #FFD9CC", background: "#FFF5F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <svg width="16" height="16" viewBox="0 0 16 16">
-                      <path
-                        d="M3 2.5c1.2 0 1.6 2 2 2.6.4.7-.8 1.3-.5 2 .5 1.2 1.7 2.4 2.9 2.9.7.3 1.3-.9 2-.5.6.4 2.6.8 2.6 2 0 1.3-1.2 2-2.4 2C6.9 13.5 2.5 9.1 2.5 4.9c0-1.2.7-2.4 2-2.4z"
-                        fill="none"
-                        stroke="#FF5C35"
-                        strokeWidth="1.4"
-                      />
+                      <path d="M3 2.5c1.2 0 1.6 2 2 2.6.4.7-.8 1.3-.5 2 .5 1.2 1.7 2.4 2.9 2.9.7.3 1.3-.9 2-.5.6.4 2.6.8 2.6 2 0 1.3-1.2 2-2.4 2C6.9 13.5 2.5 9.1 2.5 4.9c0-1.2.7-2.4 2-2.4z" fill="none" stroke="#FF5C35" strokeWidth="1.4" />
                     </svg>
                   </div>
                 </div>
@@ -383,31 +628,65 @@ export default function CalendarClient({
                     borderLeft: "3px solid #7C3AED",
                     borderRadius: 8,
                     padding: "14px 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>{iv.candidateName}</div>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "2px 8px",
-                        borderRadius: 20,
-                        background: badge.bg,
-                        color: badge.color,
-                      }}
-                    >
-                      {badge.label}
-                    </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                      <CandidateLink id={iv.candidateId} name={iv.candidateName} />
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          borderRadius: 20,
+                          background: badge.bg,
+                          color: badge.color,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "#4B5565", marginBottom: 6 }}>
+                      Interview — {iv.clientName} · {iv.jobTitle ?? "--"}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <svg width="14" height="14" viewBox="0 0 16 16">
+                          <circle cx="8" cy="8" r="6.4" fill="none" stroke="#6B7280" strokeWidth="1.3" />
+                          <path d="M8 4.6V8l2.6 1.6" fill="none" stroke="#6B7280" strokeWidth="1.3" />
+                        </svg>
+                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Time</span>
+                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{timePart(iv.scheduledAt)}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <svg width="14" height="14" viewBox="0 0 16 16">
+                          <circle cx="8" cy="5.5" r="2.6" fill="none" stroke="#6B7280" strokeWidth="1.3" />
+                          <path d="M2.8 14c0-2.6 2.3-4.4 5.2-4.4s5.2 1.8 5.2 4.4" fill="none" stroke="#6B7280" strokeWidth="1.3" />
+                        </svg>
+                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Interviewer</span>
+                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{iv.interviewerName ?? "Unassigned"}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <svg width="14" height="14" viewBox="0 0 16 16">
+                          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="#6B7280" strokeWidth="1.3" />
+                          <circle cx="6" cy="7" r="1.8" fill="none" stroke="#6B7280" strokeWidth="1.2" />
+                        </svg>
+                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Scheduled by</span>
+                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{iv.scheduledByName ?? "--"}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, color: "#4B5565" }}>
-                    Interview — {iv.clientName} · {iv.jobTitle ?? "--"}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", marginTop: 8 }}>
-                    <span style={{ fontSize: 13, color: "#4B5565" }}>{timePart(iv.scheduledAt)}</span>
-                    <span style={{ fontSize: 13, color: "#4B5565" }}>
-                      Interviewer: {iv.interviewerName ?? "Unassigned"}
-                    </span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                    <button type="button" onClick={() => openInterviewModal(iv)} title="Edit interview" style={iconBtnStyle}>
+                      <svg width="14" height="14" viewBox="0 0 16 16"><path d="M11.5 1.5l3 3L5 14l-3-3z" fill="none" stroke="#4B5565" strokeWidth="1.3" strokeLinejoin="round"/><path d="M10.3 4.3l1.2-1.2" fill="none" stroke="#4B5565" strokeWidth="1.3"/></svg>
+                    </button>
+                    <button type="button" onClick={() => openInterviewModal(iv)} title="Cancel interview" style={iconBtnDangerStyle}>
+                      <svg width="14" height="14" viewBox="0 0 16 16"><line x1="4" y1="4" x2="12" y2="12" stroke="#B42318" strokeWidth="1.6" strokeLinecap="round"/><line x1="12" y1="4" x2="4" y2="12" stroke="#B42318" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                    </button>
                   </div>
                 </div>
               );
@@ -430,6 +709,154 @@ export default function CalendarClient({
             setShowMoreFilters(false);
           }}
         />
+      )}
+
+      {editingFollowUp && (
+        <div
+          onClick={() => !submitting && setEditingFollowUp(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(29,36,51,0.4)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 440, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 12, padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433" }}>Edit Follow-Up</div>
+              <div onClick={() => setEditingFollowUp(null)} style={{ cursor: "pointer", fontSize: 20, color: "#9AA1AC", lineHeight: 1 }}>×</div>
+            </div>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 18 }}>{editingFollowUp.candidateName}</div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Status</div>
+            <select
+              value={fuStatus}
+              onChange={(e) => setFuStatus(e.target.value)}
+              style={selectInputStyle}
+            >
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6, marginTop: 14 }}>Due Date &amp; Time</div>
+            <input
+              type="datetime-local"
+              value={fuDueAt}
+              onChange={(e) => setFuDueAt(e.target.value)}
+              style={selectInputStyle}
+            />
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6, marginTop: 14 }}>Assign To</div>
+            <select
+              value={fuAssignTo}
+              onChange={(e) => setFuAssignTo(e.target.value)}
+              style={selectInputStyle}
+            >
+              <option value="">-- Select --</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            {usersLoading && <div style={{ fontSize: 11.5, color: "#9AA1AC", marginTop: 4 }}>Loading users…</div>}
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6, marginTop: 14 }}>Note (optional)</div>
+            <textarea
+              value={fuNote}
+              onChange={(e) => setFuNote(e.target.value)}
+              placeholder="Add a note…"
+              rows={3}
+              style={{ ...selectInputStyle, resize: "vertical" }}
+            />
+
+            {submitError && <div style={{ fontSize: 12.5, color: "#B42318", marginTop: 12 }}>{submitError}</div>}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button onClick={cancelFollowUp} disabled={submitting} style={{ ...modalBtnSecondary, color: "#B42318", borderColor: "#FECACA" }}>
+                Cancel Follow-Up
+              </button>
+              <button onClick={submitFollowUp} disabled={submitting} style={{ ...modalBtnPrimary, opacity: submitting ? 0.7 : 1 }}>
+                {submitting ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingInterview && (
+        <div
+          onClick={() => !submitting && setEditingInterview(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(29,36,51,0.4)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 460, maxWidth: "92vw", background: "#FFFFFF", borderRadius: 12, padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433" }}>Edit Interview</div>
+              <div onClick={() => setEditingInterview(null)} style={{ cursor: "pointer", fontSize: 20, color: "#9AA1AC", lineHeight: 1 }}>×</div>
+            </div>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 18 }}>{editingInterview.candidateName}</div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Scheduled Date &amp; Time</div>
+            <input
+              type="datetime-local"
+              value={ivScheduledAt}
+              onChange={(e) => setIvScheduledAt(e.target.value)}
+              style={selectInputStyle}
+            />
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6, marginTop: 14 }}>Interviewer</div>
+            <select
+              value={ivInterviewerId}
+              onChange={(e) => setIvInterviewerId(e.target.value)}
+              style={selectInputStyle}
+            >
+              <option value="">-- Select --</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            {usersLoading && <div style={{ fontSize: 11.5, color: "#9AA1AC", marginTop: 4 }}>Loading users…</div>}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Status</div>
+                <select value={ivStatus} onChange={(e) => setIvStatus(e.target.value)} style={selectInputStyle}>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="no_show">No-Show</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Duration (min)</div>
+                <input type="number" value={ivDuration} onChange={(e) => setIvDuration(e.target.value)} min={15} step={15} style={selectInputStyle} />
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6, marginTop: 14 }}>Location</div>
+            <input
+              type="text"
+              value={ivLocation}
+              onChange={(e) => setIvLocation(e.target.value)}
+              placeholder="e.g. Zoom / Office"
+              style={selectInputStyle}
+            />
+
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6, marginTop: 14 }}>Note (optional)</div>
+            <textarea
+              value={ivNote}
+              onChange={(e) => setIvNote(e.target.value)}
+              placeholder="Add a note…"
+              rows={3}
+              style={{ ...selectInputStyle, resize: "vertical" }}
+            />
+
+            {submitError && <div style={{ fontSize: 12.5, color: "#B42318", marginTop: 12 }}>{submitError}</div>}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button onClick={cancelInterview} disabled={submitting} style={{ ...modalBtnSecondary, color: "#B42318", borderColor: "#FECACA" }}>
+                Cancel Interview
+              </button>
+              <button onClick={submitInterview} disabled={submitting} style={{ ...modalBtnPrimary, opacity: submitting ? 0.7 : 1 }}>
+                {submitting ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
