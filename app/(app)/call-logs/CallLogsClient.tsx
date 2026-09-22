@@ -76,7 +76,7 @@ export default function CallLogsClient({
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("All");
   const [connFilter, setConnFilter] = useState<ConnFilter>("All");
-  const [range, setRange] = useState<RangeFilter>("Today");
+  const [range, setRange] = useState<RangeFilter>("Last 30 Days");
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE);
   const [appliedDateRange, setAppliedDateRange] = useState<DateRange | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("created-new");
