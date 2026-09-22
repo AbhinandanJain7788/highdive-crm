@@ -74,8 +74,6 @@ export default function FollowUpsClient({
   // status is set here (a single, editable field on the row instead of a
   // separate screen), the follow-up is marked done, and a next one can be
   // scheduled in the same step instead of navigating to Candidate Detail.
-  const isInterview = logOutcome === "interview_scheduled";
-  const logScheduleLabel = isInterview ? "Interview Date and Time" : "Next follow-up date (optional)";
 
   const [logRow, setLogRow] = useState<FollowUpRow | null>(null);
   const [logOutcome, setLogOutcome] = useState<Outcome | "">("");
@@ -83,6 +81,9 @@ export default function FollowUpsClient({
   const [logNextDue, setLogNextDue] = useState("");
   const [logSubmitting, setLogSubmitting] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
+
+  const isInterview = logOutcome === "interview_scheduled";
+  const logScheduleLabel = isInterview ? "Interview Date and Time" : "Next follow-up date (optional)";
 
   function openLog(row: FollowUpRow) {
     setLogRow(row);
