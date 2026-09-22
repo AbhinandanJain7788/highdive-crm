@@ -74,6 +74,9 @@ export default function FollowUpsClient({
   // status is set here (a single, editable field on the row instead of a
   // separate screen), the follow-up is marked done, and a next one can be
   // scheduled in the same step instead of navigating to Candidate Detail.
+  const isInterview = logOutcome === "interview_scheduled";
+  const logScheduleLabel = isInterview ? "Interview Date and Time" : "Next follow-up date (optional)";
+
   const [logRow, setLogRow] = useState<FollowUpRow | null>(null);
   const [logOutcome, setLogOutcome] = useState<Outcome | "">("");
   const [logNote, setLogNote] = useState("");
@@ -118,15 +121,32 @@ export default function FollowUpsClient({
 
       if (logNextDue && logRow.applicationId) {
         const dueMs = new Date(logNextDue).getTime();
-        if (Number.isNaN(dueMs)) throw new Error("Pick a valid next follow-up date.");
-        const scheduleRes = await fetch("/api/follow-ups", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ applicationId: logRow.applicationId, dueAt: new Date(dueMs).toISOString() }),
-        });
-        if (!scheduleRes.ok) {
-          const body = await scheduleRes.json().catch(() => null);
-          throw new Error(body?.error?.message ?? "Could not schedule the next follow-up.");
+        if (Number.isNaN(dueMs)) throw new Error("Pick a valid date and time.");
+
+        if (isInterview) {
+          const interviewRes = await fetch("/api/interviews", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              applicationId: logRow.applicationId,
+              scheduledAt: new Date(dueMs).toISOString(),
+              ...(logNote.trim() ? { note: logNote } : {}),
+            }),
+          });
+          if (!interviewRes.ok) {
+            const body = await interviewRes.json().catch(() => null);
+            throw new Error(body?.error?.message ?? "Could not schedule the interview.");
+          }
+        } else {
+          const scheduleRes = await fetch("/api/follow-ups", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ applicationId: logRow.applicationId, dueAt: new Date(dueMs).toISOString() }),
+          });
+          if (!scheduleRes.ok) {
+            const body = await scheduleRes.json().catch(() => null);
+            throw new Error(body?.error?.message ?? "Could not schedule the next follow-up.");
+          }
         }
       }
 
@@ -436,14 +456,16 @@ export default function FollowUpsClient({
               ))}
             </select>
 
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Next follow-up date (optional)</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>{logScheduleLabel}</div>
             <input
               type="datetime-local"
               value={logNextDue}
               onChange={(e) => setLogNextDue(e.target.value)}
               style={{ width: "100%", padding: "9px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13, marginBottom: 4 }}
             />
-            <div style={{ fontSize: 11.5, color: "#9AA1AC", marginBottom: 16 }}>Leave blank if this follow-up is done for good.</div>
+            <div style={{ fontSize: 11.5, color: "#9AA1AC", marginBottom: 16 }}>
+              {isInterview ? "Leave blank if no follow-up is needed." : "Leave blank if this follow-up is done for good."}
+            </div>
 
             <div style={{ fontSize: 11.5, fontWeight: 600, color: "#4B5565", marginBottom: 6 }}>Note (optional)</div>
             <textarea
