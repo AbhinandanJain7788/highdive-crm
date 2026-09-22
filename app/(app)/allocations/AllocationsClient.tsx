@@ -133,12 +133,7 @@ export default function AllocationsClient({
     setPage(1);
   }, [bucket, search, range, appliedDateRange, statusKey, userScope, selectedUserIds, sortKey, pageSize]);
 
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-
+  function buildAllocationsParams() {
     const params = new URLSearchParams();
     params.set("bucket", bucket);
     if (search.trim()) params.set("search", search.trim());
@@ -160,32 +155,49 @@ export default function AllocationsClient({
         params.set("createdTo", new Date(bounds.to).toISOString());
       }
     }
+    return params;
+  }
+
+  // Re-runs the same list fetch outside the debounced filter effect below — used
+  // right after a status/recruiter change so the row's bucket membership (computed
+  // server-side by v_allocations, never reimplemented here per claude.md) is
+  // re-checked immediately instead of leaving a now-wrong-bucket row sitting in the
+  // list until the next manual reload.
+  async function refetchAllocations(signal?: AbortSignal) {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(`/api/allocations?${buildAllocationsParams().toString()}`, { signal });
+      if (!res.ok) throw new Error("Could not load allocations.");
+      const body = await res.json();
+      setRows(body.data ?? []);
+      const nextTotal = body.total ?? 0;
+      setTotal(nextTotal);
+      // The API answers an out-of-range page with an empty list and the true total
+      // (lib/format.ts > rangeOverflow) rather than erroring, so clamp back onto the
+      // last real page. Covers the cases the filter reset above cannot: a deep-linked
+      // stale page, or rows deleted under us by another user while we sat on page 4.
+      const maxPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+      if (page > maxPage) setPage(maxPage);
+      if (body.counts) setCounts(body.counts);
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setLoadError(err instanceof Error ? err.message : "Could not load allocations.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
 
     const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const res = await fetch(`/api/allocations?${params.toString()}`, { signal: controller.signal });
-        if (!res.ok) throw new Error("Could not load allocations.");
-        const body = await res.json();
-        setRows(body.data ?? []);
-        const nextTotal = body.total ?? 0;
-        setTotal(nextTotal);
-        // The API answers an out-of-range page with an empty list and the true total
-        // (lib/format.ts > rangeOverflow) rather than erroring, so clamp back onto the
-        // last real page. Covers the cases the filter reset above cannot: a deep-linked
-        // stale page, or rows deleted under us by another user while we sat on page 4.
-        const maxPage = Math.max(1, Math.ceil(nextTotal / pageSize));
-        if (page > maxPage) setPage(maxPage);
-        if (body.counts) setCounts(body.counts);
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setLoadError(err instanceof Error ? err.message : "Could not load allocations.");
-        }
-      } finally {
-        setLoading(false);
-      }
+    const timer = setTimeout(() => {
+      refetchAllocations(controller.signal);
     }, 250);
 
     return () => {
@@ -556,12 +568,8 @@ export default function AllocationsClient({
           canEdit={canEdit}
           canAssign={canAssign}
           onClose={() => setDetailCandidateId(null)}
-          onStatusChanged={(applicationId, next) =>
-            setRows((prev) => prev.map((r) => (r.applicationId === applicationId ? { ...r, status: next } : r)))
-          }
-          onRecruiterChanged={(applicationId, name) =>
-            setRows((prev) => prev.map((r) => (r.applicationId === applicationId ? { ...r, assignToName: name } : r)))
-          }
+          onStatusChanged={() => refetchAllocations()}
+          onRecruiterChanged={() => refetchAllocations()}
         />
       )}
 
