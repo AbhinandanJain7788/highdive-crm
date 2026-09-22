@@ -7,6 +7,7 @@ const nextConfig = {
   // and back to a tab within 30s of adding/editing something elsewhere — the exact
   // "only a manual browser refresh shows the change" symptom. Forcing dynamic
   // routes to staleTime 0 makes every tab navigation re-fetch from the server.
+  // last redeploy: 2026-09-22
   experimental: {
     staleTimes: {
       dynamic: 0,
