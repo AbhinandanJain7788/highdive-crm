@@ -611,22 +611,6 @@ export default function CalendarClient({
                     <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <svg width="14" height="14" viewBox="0 0 16 16">
-                          <circle cx="8" cy="5.5" r="2.6" fill="none" stroke="#6B7280" strokeWidth="1.3" />
-                          <path d="M2.8 14c0-2.6 2.3-4.4 5.2-4.4s5.2 1.8 5.2 4.4" fill="none" stroke="#6B7280" strokeWidth="1.3" />
-                        </svg>
-                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Scheduled by</span>
-                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{ev.assignedByName ?? "--"}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        <svg width="14" height="14" viewBox="0 0 16 16">
-                          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="#6B7280" strokeWidth="1.3" />
-                          <circle cx="6" cy="7" r="1.8" fill="none" stroke="#6B7280" strokeWidth="1.2" />
-                        </svg>
-                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Assigned to</span>
-                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{ev.assignToName ?? "--"}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        <svg width="14" height="14" viewBox="0 0 16 16">
                           <circle cx="8" cy="8" r="6.4" fill="none" stroke="#6B7280" strokeWidth="1.3" />
                           <path d="M8 4.6V8l2.6 1.6" fill="none" stroke="#6B7280" strokeWidth="1.3" />
                         </svg>
@@ -702,14 +686,6 @@ export default function CalendarClient({
                         </svg>
                         <span style={{ fontSize: 12.5, color: "#6B7280" }}>Interviewer</span>
                         <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{iv.interviewerName ?? "Unassigned"}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        <svg width="14" height="14" viewBox="0 0 16 16">
-                          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="#6B7280" strokeWidth="1.3" />
-                          <circle cx="6" cy="7" r="1.8" fill="none" stroke="#6B7280" strokeWidth="1.2" />
-                        </svg>
-                        <span style={{ fontSize: 12.5, color: "#6B7280" }}>Scheduled by</span>
-                        <span style={{ fontSize: 13, color: "#1D2433", fontWeight: 500 }}>{iv.scheduledByName ?? "--"}</span>
                       </div>
                     </div>
                   </div>
@@ -893,7 +869,7 @@ export default function CalendarClient({
       )}
 
       {detailCandidateId && (
-        <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, maxWidth: "92vw", background: "#FFFFFF", zIndex: 70, boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", overflowY: "auto" }}>
+        <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 640, maxWidth: "92vw", background: "#FFFFFF", zIndex: 70, boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", overflowY: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #E7E9EE" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#1D2433" }}>Candidate Details</div>
             <div
