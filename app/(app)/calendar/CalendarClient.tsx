@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { statusStyles } from "@/lib/mock/styles";
 import { APPLICATION_STATUSES } from "@/lib/candidates.shared";
+import type { CallRow } from "@/lib/calls.shared";
+import type { CandidateDetail } from "@/lib/candidates.shared";
 import { CheckboxListPopover, MoreFiltersPanel, IconButton, FunnelIcon, selectStyle } from "@/components/ListFilters";
 import type { FollowUpRow } from "@/lib/followups.shared";
 import type { InterviewRow } from "@/lib/interviews.shared";
 import { interviewStatusStyles } from "@/lib/interviews.shared";
+import CandidateDetailClient from "@/app/(app)/candidates/[id]/CandidateDetailClient";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -93,7 +95,6 @@ export default function CalendarClient({
   initialEvents: FollowUpRow[];
   initialInterviewEvents: InterviewRow[];
 }) {
-  const router = useRouter();
   const today = useMemo(() => istCalendarParts(new Date().toISOString()), []);
   const [view, setView] = useState({ year: initialYear, month: initialMonth - 1 });
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -395,9 +396,41 @@ export default function CalendarClient({
 
   const activeFilterCount = selectedStatuses.size > 0 ? 1 : 0;
 
+  const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
+  const [detailCandidate, setDetailCandidate] = useState<CandidateDetail | null>(null);
+  const [detailCalls, setDetailCalls] = useState<CallRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
+  const [canAssign, setCanAssign] = useState(false);
+
+  async function openCandidateDetail(id: string) {
+    setDetailCandidateId(id);
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const [profileRes, candRes, callsRes] = await Promise.all([
+        fetch("/api/users/me").then((r) => (r.ok ? r.json() : Promise.reject(r))),
+        fetch(`/api/candidates/${id}`).then((r) => (r.ok ? r.json() : Promise.reject(r))),
+        fetch(`/api/candidates/${id}/calls?pageSize=50`).then((r) => (r.ok ? r.json() : Promise.reject(r))),
+      ]);
+      const candidate = candRes.data as CandidateDetail;
+      if (!candidate) throw new Error("Candidate not found.");
+      setDetailCandidate(candidate);
+      setDetailCalls(callsRes.data ?? []);
+      const perms = (profileRes.data?.permissions ?? []) as string[];
+      setCanEdit(perms.includes("manage_candidates"));
+      setCanAssign(perms.includes("manage_assignment"));
+    } catch {
+      setDetailError("Could not load candidate details.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   const CandidateLink: React.FC<{ id: string; name: string }> = ({ id, name }) => (
     <span
-      onClick={() => router.push(`/candidates/${id}`)}
+      onClick={() => openCandidateDetail(id)}
       style={{ fontWeight: 600, color: "#1D4FD8", cursor: "pointer", textDecoration: "none", fontSize: 14 }}
       onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
       onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
@@ -857,6 +890,38 @@ export default function CalendarClient({
             </div>
           </div>
         </div>
+      )}
+
+      {detailCandidateId && (
+        <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 520, maxWidth: "92vw", background: "#FFFFFF", zIndex: 70, boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", overflowY: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #E7E9EE" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1D2433" }}>Candidate Details</div>
+            <div
+              onClick={() => { setDetailCandidateId(null); setDetailCandidate(null); }}
+              style={{ cursor: "pointer", fontSize: 22, color: "#9AA1AC", lineHeight: 1 }}
+            >
+              ×
+            </div>
+          </div>
+          {detailLoading && <div style={{ padding: 20, color: "#9AA1AC", fontSize: 13 }}>Loading…</div>}
+          {detailError && <div style={{ padding: 20, color: "#B42318", fontSize: 13 }}>{detailError}</div>}
+          {detailCandidate && !detailLoading && (
+            <div style={{ padding: 20 }}>
+              <CandidateDetailClient
+                candidate={detailCandidate}
+                canEdit={canEdit}
+                canAssign={canAssign}
+                calls={detailCalls}
+                onClose={() => { setDetailCandidateId(null); setDetailCandidate(null); }}
+                onStatusChanged={() => {}}
+                onRecruiterChanged={() => {}}
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {detailCandidateId && (
+        <div onClick={() => { setDetailCandidateId(null); setDetailCandidate(null); }} style={{ position: "fixed", inset: 0, background: "rgba(29,36,51,0.25)", zIndex: 69 }} />
       )}
     </div>
   );
