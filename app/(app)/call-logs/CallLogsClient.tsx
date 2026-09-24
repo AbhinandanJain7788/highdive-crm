@@ -101,6 +101,9 @@ export default function CallLogsClient({
   const [audioUrlCache, setAudioUrlCache] = useState<Record<number, string | null>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   // ---- "Unattributed" tab state ----
   const [unattributedRows, setUnattributedRows] = useState<UnattributedCallRow[]>(initialUnattributedRows);
@@ -677,48 +680,117 @@ export default function CallLogsClient({
 
       {callLogsTab === "all" && (
         <>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden", overflowX: "auto" }}>
+          <div style={{ position: "relative" }}>
+            {scrollOffset > 0 && (
+              <button
+                onClick={() => tableScrollRef.current?.scrollBy({ left: -300, behavior: "smooth" })}
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  top: 12,
+                  zIndex: 5,
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  border: "1px solid #E7E9EE",
+                  background: "#FFFFFF",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#4B5565",
+                }}
+                title="Scroll left"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
+              </button>
+            )}
+            {canScrollRight && (
+              <button
+                onClick={() => tableScrollRef.current?.scrollBy({ left: 300, behavior: "smooth" })}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  top: 12,
+                  zIndex: 5,
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  border: "1px solid #E7E9EE",
+                  background: "#FFFFFF",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#4B5565",
+                }}
+                title="Scroll right"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
+              </button>
+            )}
             <div
+              ref={tableScrollRef}
+              onScroll={() => {
+                if (tableScrollRef.current) {
+                  const el = tableScrollRef.current;
+                  setScrollOffset(el.scrollLeft);
+                  setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+                }
+              }}
               style={{
-                display: "grid",
-                gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
-                gap: 10,
-                padding: "10px 16px",
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: "#9AA1AC",
-                textTransform: "uppercase",
-                borderBottom: "1px solid #EEF0F4",
-                background: "#FAFBFC",
-                whiteSpace: "nowrap",
+                background: "#FFFFFF",
+                border: "1px solid #E7E9EE",
+                borderRadius: 10,
+                overflow: "auto",
+                maxHeight: "calc(100vh - 320px)",
               }}
             >
-              <div>
-                <input type="checkbox" readOnly />
-              </div>
-              <div>Call Type</div>
-              <div>Name</div>
-              <div>By</div>
-              <div>Called At</div>
-              <div>AI Score</div>
-              <div>Duration</div>
-              <div>Next Action</div>
-              <div>Status</div>
-              <div>Actions</div>
-            </div>
-            {enrichedRows.map((l) => (
               <div
-                key={l.id}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
                   gap: 10,
-                  alignItems: "center",
-                  padding: "11px 16px",
-                  borderBottom: "1px solid #F4F5F8",
+                  padding: "10px 16px",
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: "#9AA1AC",
+                  textTransform: "uppercase",
+                  borderBottom: "1px solid #EEF0F4",
+                  background: "#FAFBFC",
                   whiteSpace: "nowrap",
+                  minWidth: 900,
                 }}
               >
+                <div>
+                  <input type="checkbox" readOnly />
+                </div>
+                <div>Call Type</div>
+                <div>Name</div>
+                <div>By</div>
+                <div>Called At</div>
+                <div>AI Score</div>
+                <div>Duration</div>
+                <div>Next Action</div>
+                <div>Status</div>
+                <div>Actions</div>
+              </div>
+              {enrichedRows.map((l) => (
+                <div
+                  key={l.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
+                    gap: 10,
+                    alignItems: "center",
+                    padding: "9px 16px",
+                    borderBottom: "1px solid #F4F5F8",
+                    whiteSpace: "nowrap",
+                    minWidth: 900,
+                  }}
+                >
                 <div>
                   <input type="checkbox" readOnly />
                 </div>
@@ -837,48 +909,46 @@ export default function CallLogsClient({
                     ) : (
                       <button
                         onClick={() => startPlayback(l)}
+                        disabled={!l.hasRecording}
+                        title="Play recording"
                         style={{
-                          border: "1px solid #D9DCE3",
-                          background: "#FFFFFF",
-                          color: "#4B5565",
+                          width: 28,
+                          height: 28,
                           borderRadius: 6,
-                          padding: "7px 14px",
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          cursor: "pointer",
+                          border: l.hasRecording ? "1px solid #D9DCE3" : "1px solid #EEF0F4",
+                          background: "#FFFFFF",
                           display: "flex",
                           alignItems: "center",
-                          gap: 6,
-                          whiteSpace: "nowrap",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          cursor: l.hasRecording ? "pointer" : "default",
+                          opacity: l.hasRecording ? 1 : 0.4,
                         }}
                       >
                         <svg width="11" height="11" viewBox="0 0 12 12">
-                          <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#4B5565" />
+                          <path d="M2.5 1.5l7 4.5-7 4.5z" fill={l.hasRecording ? "#4B5565" : "#C9CED6"} />
                         </svg>
-                        Play Recording
                       </button>
                     )
                   ) : (
                     <button
                       disabled
+                      title="No recording"
                       style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
                         border: "1px solid #EEF0F4",
                         background: "#FAFBFC",
-                        color: "#C9CED6",
-                        borderRadius: 6,
-                        padding: "7px 14px",
-                        fontSize: 12.5,
-                        fontWeight: 600,
                         display: "flex",
                         alignItems: "center",
-                        gap: 6,
-                        whiteSpace: "nowrap",
+                        justifyContent: "center",
+                        flexShrink: 0,
                       }}
                     >
                       <svg width="11" height="11" viewBox="0 0 12 12">
                         <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#C9CED6" />
                       </svg>
-                      Play Recording
                     </button>
                   )}
                   <button
@@ -913,6 +983,7 @@ export default function CallLogsClient({
                 {loading ? "Loading call logs…" : "No calls match the current filters."}
               </div>
             )}
+          </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
