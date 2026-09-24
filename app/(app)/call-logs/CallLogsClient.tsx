@@ -751,7 +751,7 @@ export default function CallLogsClient({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
+                  gridTemplateColumns: "0.35fr 0.9fr 1.7fr 1fr 1.1fr 1fr 1fr 1.1fr",
                   gap: 10,
                   padding: "10px 16px",
                   fontSize: 11.5,
@@ -761,7 +761,7 @@ export default function CallLogsClient({
                   borderBottom: "1px solid #EEF0F4",
                   background: "#FAFBFC",
                   whiteSpace: "nowrap",
-                  minWidth: 900,
+                  minWidth: 800,
                 }}
               >
                 <div>
@@ -775,20 +775,19 @@ export default function CallLogsClient({
                 <div>Duration</div>
                 <div>Next Action</div>
                 <div>Status</div>
-                <div>Actions</div>
               </div>
               {enrichedRows.map((l) => (
                 <div
                   key={l.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
+                    gridTemplateColumns: "0.35fr 0.9fr 1.7fr 1fr 1.1fr 1fr 1fr 1.1fr",
                     gap: 10,
                     alignItems: "center",
                     padding: "9px 16px",
                     borderBottom: "1px solid #F4F5F8",
                     whiteSpace: "nowrap",
-                    minWidth: 900,
+                    minWidth: 800,
                   }}
                 >
                 <div>
@@ -800,27 +799,111 @@ export default function CallLogsClient({
                   </svg>
                   {l.arrow.label}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      background: avatarColorFor(l.candidateName),
-                      color: "#FFFFFF",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {avatarLetterFor(l.candidateName)}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{l.candidateName}</div>
-                    <div style={{ fontSize: 12, color: "#9AA1AC" }}>{l.phone}</div>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{l.candidateName}</div>
+                  <div style={{ fontSize: 12, color: "#9AA1AC", marginBottom: 4 }}>{l.phone}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {l.hasRecording ? (
+                      activeCallId === l.id ? (
+                        <>
+                          <button onClick={() => seekBy(-5)} title="Back 5 seconds" style={{ ...miniPlayerBtnStyle, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24">
+                              <path d="M11 5V1L6 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H3c0 4.42 3.58 8 8 8s8-3.58-8-8-3.58-8-8-8z" fill="#4B5565" />
+                            </svg>
+                          </button>
+                          <button onClick={togglePlayPause} title={isPlaying ? "Pause" : "Play"} style={{ ...miniPlayerBtnStyle, width: 24, height: 24, border: "none", background: "#FF5C35", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {isPlaying ? (
+                              <svg width="8" height="8" viewBox="0 0 12 12"><rect x="2" y="1.5" width="3" height="9" fill="#FFFFFF" /><rect x="7" y="1.5" width="3" height="9" fill="#FFFFFF" /></svg>
+                            ) : (
+                              <svg width="8" height="8" viewBox="0 0 12 12"><path d="M2.5 1.5l7 4.5-7 4.5z" fill="#FFFFFF" /></svg>
+                            )}
+                          </button>
+                          <button onClick={() => seekBy(5)} title="Forward 5 seconds" style={{ ...miniPlayerBtnStyle, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24">
+                              <path d="M13 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6-6-2.69-6-6h2c0 4.42-3.58 8-8 8s8-3.58-8-8-3.58-8-8-8z" fill="#4B5565" />
+                            </svg>
+                          </button>
+                          <div
+                            ref={progressRef}
+                            onClick={(e) => seekToClientX(e.clientX)}
+                            title={`${fmtClock(currentTime)} / ${fmtClock(duration)}`}
+                            style={{ width: 40, height: 4, background: "#EEF0F5", borderRadius: 2, position: "relative", cursor: "pointer" }}
+                          >
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 0,
+                                bottom: 0,
+                                left: 0,
+                                width: `${duration ? Math.min((currentTime / duration) * 100, 100) : 0}%`,
+                                background: "#FF5C35",
+                                borderRadius: 2,
+                              }}
+                            />
+                          </div>
+                          <button onClick={stopPlayback} title="Stop" style={{ ...miniPlayerBtnStyle, width: 24, height: 24, border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <svg width="8" height="8" viewBox="0 0 12 12">
+                              <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="#9AA1AC" strokeWidth="1.4" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => startPlayback(l)}
+                          disabled={!l.hasRecording}
+                          title="Play recording"
+                          style={{
+                            border: "1px solid #D9DCE3",
+                            background: "#FFFFFF",
+                            borderRadius: 4,
+                            padding: "2px 8px",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "#4B5565",
+                            cursor: l.hasRecording ? "pointer" : "default",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            opacity: l.hasRecording ? 1 : 0.4,
+                          }}
+                        >
+                          <svg width="9" height="9" viewBox="0 0 12 12">
+                            <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#4B5565" />
+                          </svg>
+                          Play
+                        </button>
+                      )
+                    ) : (
+                      <button disabled style={{ border: "1px solid #EEF0F4", background: "#FAFBFC", borderRadius: 4, padding: "2px 8px", fontSize: 11, color: "#C9CED6", cursor: "default", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                        <svg width="9" height="9" viewBox="0 0 12 12">
+                          <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#C9CED6" />
+                        </svg>
+                        Play
+                      </button>
+                    )}
+                    <button
+                      onClick={() => downloadRecording(l)}
+                      disabled={!l.hasRecording || downloadingId === l.id}
+                      title={l.hasRecording ? "Download" : "No recording"}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 4,
+                        border: "1px solid #E7E9EE",
+                        background: "#FFFFFF",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: l.hasRecording ? "pointer" : "default",
+                        opacity: l.hasRecording ? 1 : 0.4,
+                      }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 16 16">
+                        <path d="M8 1.5v9M4.5 7l3.5 3.5L11.5 7" fill="none" stroke="#4B5565" strokeWidth="1.3" />
+                        <line x1="2" y1="13.5" x2="14" y2="13.5" stroke="#4B5565" strokeWidth="1.3" />
+                      </svg>
+                    </button>
+                    <CallButton phone={l.phone} />
                   </div>
                 </div>
                 <div style={{ fontSize: 13, color: "#4B5565" }}>{l.byUserName ?? "--"}</div>
@@ -836,7 +919,7 @@ export default function CallLogsClient({
                 </div>
                 <div style={{ fontSize: 13, color: "#1D2433" }}>{fmtDuration(l.durationSeconds)}</div>
                 <div>{renderNextAction(l, openActionModal)}</div>
-                <div>
+                <div style={{ justifySelf: "start" }}>
                   {renderDisposition(l, {
                     openDispositionFor,
                     disposingId,
@@ -845,136 +928,6 @@ export default function CallLogsClient({
                     setDispositionChoice,
                     submitDisposition,
                   })}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {l.hasRecording ? (
-                    activeCallId === l.id ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                        <button onClick={() => seekBy(-5)} title="Back 5 seconds" style={miniPlayerBtnStyle}>
-                          <svg width="11" height="11" viewBox="0 0 24 24">
-                            <path
-                              d="M11 5V1L6 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H3c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
-                              fill="#4B5565"
-                            />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={togglePlayPause}
-                          title={isPlaying ? "Pause" : "Play"}
-                          style={{ ...miniPlayerBtnStyle, width: 24, height: 24, border: "none", background: "#FF5C35" }}
-                        >
-                          {isPlaying ? (
-                            <svg width="9" height="9" viewBox="0 0 12 12">
-                              <rect x="2" y="1.5" width="3" height="9" fill="#FFFFFF" />
-                              <rect x="7" y="1.5" width="3" height="9" fill="#FFFFFF" />
-                            </svg>
-                          ) : (
-                            <svg width="9" height="9" viewBox="0 0 12 12">
-                              <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#FFFFFF" />
-                            </svg>
-                          )}
-                        </button>
-                        <button onClick={() => seekBy(5)} title="Forward 5 seconds" style={miniPlayerBtnStyle}>
-                          <svg width="11" height="11" viewBox="0 0 24 24">
-                            <path
-                              d="M13 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"
-                              fill="#4B5565"
-                            />
-                          </svg>
-                        </button>
-                        <div
-                          ref={progressRef}
-                          onClick={(e) => seekToClientX(e.clientX)}
-                          title={`${fmtClock(currentTime)} / ${fmtClock(duration)}`}
-                          style={{ width: 44, height: 4, background: "#EEF0F5", borderRadius: 2, position: "relative", cursor: "pointer" }}
-                        >
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: 0,
-                              bottom: 0,
-                              left: 0,
-                              width: `${duration ? Math.min((currentTime / duration) * 100, 100) : 0}%`,
-                              background: "#FF5C35",
-                              borderRadius: 2,
-                            }}
-                          />
-                        </div>
-                        <button onClick={stopPlayback} title="Stop" style={{ ...miniPlayerBtnStyle, border: "none", background: "transparent" }}>
-                          <svg width="9" height="9" viewBox="0 0 12 12">
-                            <path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="#9AA1AC" strokeWidth="1.4" strokeLinecap="round" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startPlayback(l)}
-                        disabled={!l.hasRecording}
-                        title="Play recording"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 6,
-                          border: l.hasRecording ? "1px solid #D9DCE3" : "1px solid #EEF0F4",
-                          background: "#FFFFFF",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                          cursor: l.hasRecording ? "pointer" : "default",
-                          opacity: l.hasRecording ? 1 : 0.4,
-                        }}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 12 12">
-                          <path d="M2.5 1.5l7 4.5-7 4.5z" fill={l.hasRecording ? "#4B5565" : "#C9CED6"} />
-                        </svg>
-                      </button>
-                    )
-                  ) : (
-                    <button
-                      disabled
-                      title="No recording"
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 6,
-                        border: "1px solid #EEF0F4",
-                        background: "#FAFBFC",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <svg width="11" height="11" viewBox="0 0 12 12">
-                        <path d="M2.5 1.5l7 4.5-7 4.5z" fill="#C9CED6" />
-                      </svg>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => downloadRecording(l)}
-                    disabled={!l.hasRecording || downloadingId === l.id}
-                    title={l.hasRecording ? "Download Recording" : "No recording to download"}
-                    style={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: 6,
-                      border: "1px solid #E7E9EE",
-                      background: "#FFFFFF",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      cursor: l.hasRecording && downloadingId !== l.id ? "pointer" : "default",
-                      opacity: l.hasRecording ? 1 : 0.4,
-                    }}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 16 16">
-                      <path d="M8 1.5v9M4.5 7l3.5 3.5L11.5 7" fill="none" stroke="#4B5565" strokeWidth="1.3" />
-                      <line x1="2" y1="13.5" x2="14" y2="13.5" stroke="#4B5565" strokeWidth="1.3" />
-                    </svg>
-                  </button>
-                  <CallButton phone={l.phone} />
                 </div>
               </div>
             ))}
