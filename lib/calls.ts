@@ -13,9 +13,10 @@ export { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "@/lib/calls.shared";
 const CALL_SELECT = `
   id, candidate_id, number, direction_normalized, duration_seconds, disposition,
   call_time, notes, b2_url, storage_path, resolved_agent_id, application_id, callback_due_at,
+  next_action_type, next_action_at, next_action_note,
   candidate:candidates(id, name, phone),
   agent:users(id, name),
-  application:applications(id, job:jobs(id, title))
+  application:applications(id, job:jobs(id, title, client_id))
 `;
 
 type RawCall = {
@@ -32,9 +33,12 @@ type RawCall = {
   resolved_agent_id: string | null;
   application_id: string | null;
   callback_due_at: string | null;
+  next_action_type: string | null;
+  next_action_at: string | null;
+  next_action_note: string | null;
   candidate: { id: string; name: string; phone: string | null } | null;
   agent: { id: string; name: string } | null;
-  application: { id: string; job: { id: string; title: string } | null } | null;
+  application: { id: string; job: { id: string; title: string; client_id: string } | null } | null;
 };
 
 function toCallRow(c: RawCall): CallRow {
@@ -48,18 +52,17 @@ function toCallRow(c: RawCall): CallRow {
     calledAt: formatDisplayDateTime(c.call_time),
     calledAtRaw: c.call_time,
     durationSeconds,
-    // claude.md Open Question 1: Connected/Not Connected is derived from
-    // duration_seconds > 0, never from `disposition` — kept as a separate axis.
     connected: durationSeconds > 0,
     disposition: c.disposition,
     byUserId: c.resolved_agent_id,
     byUserName: c.agent?.name ?? null,
-    // A call with both b2_url and storage_path null has no recording (claude.md /
-    // Open Question 3) — render the disabled state, never a broken player.
     hasRecording: Boolean(c.b2_url || c.storage_path),
     notes: c.notes,
     applicationId: c.application_id,
     jobTitle: c.application?.job?.title ?? null,
+    nextActionType: (c.next_action_type as CallRow["nextActionType"]) ?? null,
+    nextActionAt: c.next_action_at ?? null,
+    nextActionNote: c.next_action_note ?? null,
   };
 }
 
@@ -397,4 +400,99 @@ export async function attributeCall(
   if (updateErr) throw updateErr;
 
   return { ok: true };
+}
+
+// Completes a pending next_action on a call: creates a follow-up or interview
+// in CRM, then clears the action fields on the call row.
+export type CompleteCallActionInput =
+  | { type: "follow_up"; dueAt: string; note?: string | null; assignTo: string; assignedBy: string }
+  | { type: "interview_scheduled"; scheduledAt: string; note?: string | null; interviewerId?: string | null; location?: string | null };
+
+export type CompleteCallActionResult =
+  | { kind: "follow_up_created"; followUpId: string }
+  | { kind: "interview_created"; interviewId: string }
+  | { error: "call_not_found" | "no_application" | "application_not_found" | "no_candidate" | "action_not_pending" };
+
+export async function completeCallAction(
+  supabase: SupabaseClient<Database>,
+  callId: number,
+  input: CompleteCallActionInput,
+  actorId: string
+): Promise<CompleteCallActionResult> {
+  const { data: call, error: callErr } = await supabase
+    .from("calls")
+    .select("id, candidate_id, application_id, next_action_type, next_action_at, next_action_note, application:applications(id, job:jobs(id, client_id, title))")
+    .eq("id", callId)
+    .maybeSingle();
+  if (callErr) throw callErr;
+  if (!call) return { error: "call_not_found" };
+  if (!call.next_action_type || !call.next_action_at) return { error: "action_not_pending" };
+  if (!call.candidate_id) return { error: "no_candidate" };
+  if (!call.application_id) return { error: "no_application" };
+
+  const { data: app, error: appErr } = await supabase
+    .from("applications")
+    .select("id, candidate_id")
+    .eq("id", call.application_id)
+    .maybeSingle();
+  if (appErr) throw appErr;
+  if (!app || app.candidate_id !== call.candidate_id) return { error: "application_not_found" };
+
+  const dueAtIso = new Date(input.type === "follow_up" ? input.dueAt : input.scheduledAt).toISOString();
+
+  if (input.type === "follow_up") {
+    const { data: fu, error: fuErr } = await supabase
+      .from("follow_ups")
+      .insert({
+        application_id: call.application_id,
+        candidate_id: call.candidate_id,
+        due_at: dueAtIso,
+        assign_to: input.assignTo,
+        assigned_by: input.assignedBy,
+        note: input.note?.trim() || null,
+        status: "pending",
+        is_recurring: false,
+      })
+      .select("id")
+      .single();
+    if (fuErr) throw fuErr;
+    if (!fu) return { error: "application_not_found" };
+
+    await supabase
+      .from("calls")
+      .update({ next_action_type: null, next_action_at: null, next_action_note: null })
+      .eq("id", callId);
+
+    return { kind: "follow_up_created", followUpId: fu.id };
+  }
+
+  // interview_scheduled
+  const clientId = call.application?.job?.client_id;
+  if (!clientId) return { error: "application_not_found" };
+
+  const { data: iv, error: ivErr } = await supabase
+    .from("interviews")
+    .insert({
+      application_id: call.application_id,
+      candidate_id: call.candidate_id,
+      client_id: clientId,
+      scheduled_at: dueAtIso,
+      interviewer_id: input.interviewerId ?? null,
+      location: input.location?.trim() || null,
+      note: input.note?.trim() || null,
+      status: "scheduled",
+      duration_minutes: 60,
+      scheduled_by: actorId,
+    })
+    .select("id")
+    .single();
+  if (ivErr) throw ivErr;
+  if (!iv) return { error: "application_not_found" };
+
+  await supabase
+    .from("calls")
+    .update({ next_action_type: null, next_action_at: null, next_action_note: null })
+    .eq("id", callId);
+
+  return { kind: "interview_created", interviewId: iv.id };
 }

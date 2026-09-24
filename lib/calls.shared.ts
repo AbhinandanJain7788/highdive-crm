@@ -29,12 +29,18 @@ export type CallRow = {
   notes: string | null;
   applicationId: string | null;
   jobTitle: string | null;
+  nextActionType: "follow_up" | "interview_scheduled" | null;
+  nextActionAt: string | null;
+  nextActionNote: string | null;
 };
 
 export type CallDetail = CallRow & {
   b2Url: string | null;
   storagePath: string | null;
   callbackDueAt: string | null;
+  nextActionAt: string | null;
+  nextActionNote: string | null;
+  nextActionType: "follow_up" | "interview_scheduled" | null;
 };
 
 // The unattributed queue's "Attribute to Job" select is populated from the

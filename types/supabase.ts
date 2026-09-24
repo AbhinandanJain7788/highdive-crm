@@ -298,6 +298,9 @@ export type Database = {
           disposition: Database["public"]["Enums"]["call_disposition"] | null
           duration_seconds: number | null
           id: number
+          next_action_at: string | null
+          next_action_note: string | null
+          next_action_type: string | null
           notes: string | null
           number: string | null
           recording_url: string | null
@@ -321,6 +324,9 @@ export type Database = {
           disposition?: Database["public"]["Enums"]["call_disposition"] | null
           duration_seconds?: number | null
           id?: never
+          next_action_at?: string | null
+          next_action_note?: string | null
+          next_action_type?: string | null
           notes?: string | null
           number?: string | null
           recording_url?: string | null
@@ -344,6 +350,9 @@ export type Database = {
           disposition?: Database["public"]["Enums"]["call_disposition"] | null
           duration_seconds?: number | null
           id?: never
+          next_action_at?: string | null
+          next_action_note?: string | null
+          next_action_type?: string | null
           notes?: string | null
           number?: string | null
           recording_url?: string | null

@@ -321,6 +321,17 @@ export default function CallLogsClient({
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
+  // ---- Action completion modal state ----
+  const [actionCallId, setActionCallId] = useState<CallRow | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const [actionNote, setActionNote] = useState("");
+  const [actionDate, setActionDate] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [assignToId, setAssignToId] = useState("");
+  const [interviewerId, setInterviewerId] = useState("");
+  const [interviewLocation, setInterviewLocation] = useState("");
+
   async function downloadRecording(call: CallRow) {
     if (!call.hasRecording || downloadingId === call.id) return;
     setDownloadingId(call.id);
@@ -349,6 +360,75 @@ export default function CallLogsClient({
 
   function onAttributeChoiceChange(id: number, val: string) {
     setAttributeChoice((prev) => ({ ...prev, [id]: val }));
+  }
+
+  function openActionModal(call: CallRow) {
+    setActionCallId(call);
+    const dt = call.nextActionAt ? new Date(call.nextActionAt) : null;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localStr = dt
+      ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+      : "";
+    setActionDate(localStr);
+    setActionNote(call.nextActionNote || "");
+    setAssignToId("");
+    setInterviewerId("");
+    setInterviewLocation("");
+    setActionError(null);
+    setActionSuccess(null);
+  }
+
+  function closeActionModal() {
+    setActionCallId(null);
+    setCompleting(false);
+  }
+
+  async function submitAction() {
+    if (!actionCallId || !actionDate) return;
+    setCompleting(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const isFollowUp = actionCallId.nextActionType === "follow_up";
+      const body: Record<string, unknown> = { type: isFollowUp ? "follow_up" : "interview_scheduled" };
+
+      if (isFollowUp) {
+        body.dueAt = new Date(actionDate).toISOString();
+        body.assignTo = assignToId;
+        body.note = actionNote;
+      } else {
+        body.scheduledAt = new Date(actionDate).toISOString();
+        body.interviewerId = interviewerId || null;
+        body.location = interviewLocation;
+        body.note = actionNote;
+      }
+
+      const res = await fetch(`/api/calls/${actionCallId.id}/complete-action`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.error?.message ?? "Could not complete action.");
+      }
+      const result = await res.json();
+      setActionSuccess(result.message ?? "Action completed.");
+
+      // Refresh the row to clear action fields.
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === actionCallId.id
+            ? { ...r, nextActionType: null, nextActionAt: null, nextActionNote: null }
+            : r
+        )
+      );
+      setTimeout(closeActionModal, 800);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not complete action.");
+    } finally {
+      setCompleting(false);
+    }
   }
 
   async function onAttribute(row: UnattributedCallRow) {
@@ -536,7 +616,7 @@ export default function CallLogsClient({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 0.9fr 1.6fr",
+                gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1.2fr 1.3fr",
                 gap: 10,
                 padding: "10px 16px",
                 fontSize: 11.5,
@@ -557,6 +637,7 @@ export default function CallLogsClient({
               <div>Called At</div>
               <div>AI Score</div>
               <div>Duration</div>
+              <div>Next Action</div>
               <div>Actions</div>
             </div>
             {enrichedRows.map((l) => (
@@ -564,7 +645,7 @@ export default function CallLogsClient({
                 key={l.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 0.9fr 1.6fr",
+                  gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1.2fr 1.3fr",
                   gap: 10,
                   alignItems: "center",
                   padding: "11px 16px",
@@ -616,6 +697,7 @@ export default function CallLogsClient({
                   </svg>
                 </div>
                 <div style={{ fontSize: 13, color: "#1D2433" }}>{fmtDuration(l.durationSeconds)}</div>
+                <div>{renderNextAction(l, openActionModal)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {l.hasRecording ? (
                     activeCallId === l.id ? (
@@ -913,6 +995,26 @@ export default function CallLogsClient({
           </div>
         </>
       )}
+      {actionCallId && (
+        <ActionModal
+          call={actionCallId}
+          actionDate={actionDate}
+          setActionDate={setActionDate}
+          actionNote={actionNote}
+          setActionNote={setActionNote}
+          assignToId={assignToId}
+          setAssignToId={setAssignToId}
+          interviewerId={interviewerId}
+          setInterviewerId={setInterviewerId}
+          interviewLocation={interviewLocation}
+          setInterviewLocation={setInterviewLocation}
+          actionError={actionError}
+          actionSuccess={actionSuccess}
+          completing={completing}
+          onClose={closeActionModal}
+          onSubmit={submitAction}
+        />
+      )}
     </div>
   );
 }
@@ -928,4 +1030,252 @@ function pagerButtonStyle(disabled: boolean): React.CSSProperties {
     fontWeight: 600,
     cursor: disabled ? "default" : "pointer",
   };
+}
+
+function renderNextAction(l: CallRow, onOpen: (c: CallRow) => void): React.ReactNode {
+  if (!l.nextActionType || !l.nextActionAt) return <span style={{ color: "#9AA1AC", fontSize: 12 }}>--</span>;
+
+  const isFU = l.nextActionType === "follow_up";
+  const label = isFU ? "Follow-up" : "Interview";
+  const when = new Date(l.nextActionAt);
+  const dateStr = when.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const timeStr = when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <button
+      onClick={() => onOpen(l)}
+      title={l.nextActionNote ?? undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: "1px solid #D9DCE3",
+        background: "#FFFFFF",
+        cursor: "pointer",
+        fontSize: 12,
+        fontWeight: 600,
+        color: isFU ? "#1A56DB" : "#7C3AED",
+      }}
+    >
+      <svg width="11" height="11" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="6" fill="none" stroke={isFU ? "#1A56DB" : "#7C3AED"} strokeWidth="1.5" />
+        <path d="M8 5v3.5l2.5 1.5" fill="none" stroke={isFU ? "#1A56DB" : "#7C3AED"} strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+      {label}
+      <span style={{ color: "#9AA1AC", fontWeight: 400 }}>{dateStr} {timeStr}</span>
+    </button>
+  );
+}
+
+// -- Action completion modal --
+function ActionModal({
+  call,
+  actionDate,
+  setActionDate,
+  actionNote,
+  setActionNote,
+  assignToId,
+  setAssignToId,
+  interviewerId,
+  setInterviewerId,
+  interviewLocation,
+  setInterviewLocation,
+  actionError,
+  actionSuccess,
+  completing,
+  onClose,
+  onSubmit,
+}: {
+  call: CallRow;
+  actionDate: string;
+  setActionDate: (v: string) => void;
+  actionNote: string;
+  setActionNote: (v: string) => void;
+  assignToId: string;
+  setAssignToId: (v: string) => void;
+  interviewerId: string;
+  setInterviewerId: (v: string) => void;
+  interviewLocation: string;
+  setInterviewLocation: (v: string) => void;
+  actionError: string | null;
+  actionSuccess: string | null;
+  completing: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const isFU = call.nextActionType === "follow_up";
+  const title = isFU ? "Complete Follow-up" : "Schedule Interview";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#FFFFFF",
+          borderRadius: 12,
+          padding: 24,
+          width: 480,
+          maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflow: "auto",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#1D2433" }}>{title}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#9AA1AC" }}>✕</button>
+        </div>
+
+        <div style={{ fontSize: 13, color: "#4B5565", marginBottom: 12 }}>
+          <strong>{call.candidateName}</strong> &middot; {call.phone}
+        </div>
+
+        {call.nextActionNote && (
+          <div style={{ fontSize: 12, color: "#6B7280", background: "#F9FAFB", padding: "8px 12px", borderRadius: 6, marginBottom: 12 }}>
+            Agent note: {call.nextActionNote}
+          </div>
+        )}
+
+        {actionError && (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B42318", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 12 }}>
+            {actionError}
+          </div>
+        )}
+        {actionSuccess && (
+          <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46", borderRadius: 8, padding: "8px 12px", fontSize: 13, marginBottom: 12 }}>
+            {actionSuccess}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: "#4B5565", display: "block", marginBottom: 4 }}>
+            {isFU ? "Follow-up Date & Time" : "Interview Date & Time"} *
+          </label>
+          <input
+            type="datetime-local"
+            value={actionDate}
+            onChange={(e) => setActionDate(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              border: "1px solid #D9DCE3",
+              borderRadius: 7,
+              fontSize: 13,
+              color: "#1D2433",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {!isFU && (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: "#4B5565", display: "block", marginBottom: 4 }}>Location (optional)</label>
+              <input
+                type="text"
+                value={interviewLocation}
+                onChange={(e) => setInterviewLocation(e.target.value)}
+                placeholder="Office / Video call / etc."
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  border: "1px solid #D9DCE3",
+                  borderRadius: 7,
+                  fontSize: 13,
+                  color: "#1D2433",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: "#4B5565", display: "block", marginBottom: 4 }}>Interviewer (optional)</label>
+              <input
+                type="text"
+                value={interviewerId}
+                onChange={(e) => setInterviewerId(e.target.value)}
+                placeholder="Interviewer name"
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  border: "1px solid #D9DCE3",
+                  borderRadius: 7,
+                  fontSize: 13,
+                  color: "#1D2433",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: "#4B5565", display: "block", marginBottom: 4 }}>Note (optional)</label>
+          <textarea
+            value={actionNote}
+            onChange={(e) => setActionNote(e.target.value)}
+            rows={2}
+            placeholder={isFU ? "Any follow-up note..." : "Interview notes..."}
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              border: "1px solid #D9DCE3",
+              borderRadius: 7,
+              fontSize: 13,
+              color: "#1D2433",
+              boxSizing: "border-box",
+              resize: "vertical",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            disabled={completing}
+            style={{
+              padding: "8px 16px",
+              border: "1px solid #D9DCE3",
+              borderRadius: 7,
+              background: "#FFFFFF",
+              cursor: completing ? "default" : "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#4B5565",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={completing || !actionDate}
+            style={{
+              padding: "8px 16px",
+              border: "none",
+              borderRadius: 7,
+              background: completing || !actionDate ? "#C9CED6" : (isFU ? "#1A56DB" : "#7C3AED"),
+              color: "#FFFFFF",
+              cursor: completing || !actionDate ? "default" : "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {completing ? "Saving…" : (isFU ? "Create Follow-up" : "Schedule Interview")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
