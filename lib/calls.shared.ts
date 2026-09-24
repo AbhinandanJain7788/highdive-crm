@@ -32,6 +32,7 @@ export type CallRow = {
   nextActionType: "follow_up" | "interview_scheduled" | null;
   nextActionAt: string | null;
   nextActionNote: string | null;
+  topic: string | null;
 };
 
 export type CallDetail = CallRow & {
