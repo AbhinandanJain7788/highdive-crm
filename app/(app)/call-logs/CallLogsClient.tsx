@@ -321,6 +321,13 @@ export default function CallLogsClient({
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
+  // ---- Disposition state ----
+  const [dispositionChoice, setDispositionChoice] = useState<Record<number, string>>({});
+  const [disposingId, setDisposingId] = useState<number | null>(null);
+  const [dispositionError, setDispositionError] = useState<string | null>(null);
+  const [dispositionSuccess, setDispositionSuccess] = useState<string | null>(null);
+  const [openDispositionFor, setOpenDispositionFor] = useState<number | null>(null);
+
   // ---- Action completion modal state ----
   const [actionCallId, setActionCallId] = useState<CallRow | null>(null);
   const [completing, setCompleting] = useState(false);
@@ -381,6 +388,54 @@ export default function CallLogsClient({
   function closeActionModal() {
     setActionCallId(null);
     setCompleting(false);
+  }
+
+  function getDispositionValue(row: CallRow): string {
+    if (row.disposition) return row.disposition;
+    return dispositionChoice[row.id] ?? "";
+  }
+
+  function onDispositionChange(id: number, value: string) {
+    setDispositionChoice((prev) => ({ ...prev, [id]: value }));
+  }
+
+  async function submitDisposition(id: number) {
+    const value = dispositionChoice[id];
+    if (!value) return;
+    setDisposingId(id);
+    setDispositionError(null);
+    setDispositionSuccess(null);
+    try {
+      const res = await fetch(`/api/calls/${id}/disposition`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ disposition: value }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.error?.message ?? "Could not set disposition.");
+      }
+      const result = await res.json();
+      setDispositionSuccess(result.message ?? "Disposition updated.");
+
+      // Refresh the row with the new disposition.
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, disposition: value as CallRow["disposition"] } : r
+        )
+      );
+      setDispositionChoice((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setOpenDispositionFor(null);
+      setTimeout(() => setDispositionSuccess(null), 3000);
+    } catch (err) {
+      setDispositionError(err instanceof Error ? err.message : "Could not set disposition.");
+    } finally {
+      setDisposingId(null);
+    }
   }
 
   async function submitAction() {
@@ -609,6 +664,16 @@ export default function CallLogsClient({
           {attributeError}
         </div>
       )}
+      {dispositionError && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B42318", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
+          {dispositionError}
+        </div>
+      )}
+      {dispositionSuccess && (
+        <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
+          {dispositionSuccess}
+        </div>
+      )}
 
       {callLogsTab === "all" && (
         <>
@@ -616,7 +681,7 @@ export default function CallLogsClient({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1.2fr 1.3fr",
+                gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
                 gap: 10,
                 padding: "10px 16px",
                 fontSize: 11.5,
@@ -638,6 +703,7 @@ export default function CallLogsClient({
               <div>AI Score</div>
               <div>Duration</div>
               <div>Next Action</div>
+              <div>Status</div>
               <div>Actions</div>
             </div>
             {enrichedRows.map((l) => (
@@ -645,7 +711,7 @@ export default function CallLogsClient({
                 key={l.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1.2fr 1.3fr",
+                  gridTemplateColumns: "0.35fr 0.9fr 1.5fr 1fr 1.1fr 1fr 1fr 1.1fr 1.3fr",
                   gap: 10,
                   alignItems: "center",
                   padding: "11px 16px",
@@ -698,6 +764,16 @@ export default function CallLogsClient({
                 </div>
                 <div style={{ fontSize: 13, color: "#1D2433" }}>{fmtDuration(l.durationSeconds)}</div>
                 <div>{renderNextAction(l, openActionModal)}</div>
+                <div>
+                  {renderDisposition(l, {
+                    openDispositionFor,
+                    disposingId,
+                    dispositionChoice,
+                    setOpenDispositionFor,
+                    setDispositionChoice,
+                    submitDisposition,
+                  })}
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {l.hasRecording ? (
                     activeCallId === l.id ? (
@@ -1030,6 +1106,135 @@ function pagerButtonStyle(disabled: boolean): React.CSSProperties {
     fontWeight: 600,
     cursor: disabled ? "default" : "pointer",
   };
+}
+
+// -- Disposition renderer --
+const DISPOSITION_STYLES: Record<string, { bg: string; color: string; label: string }> = {
+  interested: { bg: "#E6F4EA", color: "#1E7F43", label: "Interested" },
+  callback_later: { bg: "#FFF4E5", color: "#B15C00", label: "Callback Later" },
+  not_reachable: { bg: "#EEF0F5", color: "#5B6472", label: "Not Reachable" },
+};
+
+function renderDisposition(
+  l: CallRow,
+  props: {
+    openDispositionFor: number | null;
+    disposingId: number | null;
+    dispositionChoice: Record<number, string>;
+    setOpenDispositionFor: (id: number | null) => void;
+    setDispositionChoice: (updater: (prev: Record<number, string>) => Record<number, string>) => void;
+    submitDisposition: (id: number) => void;
+  }
+): React.ReactNode {
+  const { openDispositionFor, disposingId, dispositionChoice, setOpenDispositionFor, setDispositionChoice, submitDisposition } = props;
+
+  if (openDispositionFor === l.id) {
+    return (
+      <div style={{ position: "relative" }}>
+        <select
+          autoFocus
+          value={dispositionChoice[l.id] ?? l.disposition ?? ""}
+          onChange={(e) => {
+            setDispositionChoice((prev) => ({ ...prev, [l.id]: e.target.value }));
+          }}
+          style={{
+            padding: "4px 8px",
+            border: "1px solid #1D2433",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            background: "#FFFFFF",
+            color: "#1D2433",
+            cursor: "pointer",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+          onBlur={() => {
+            const val = dispositionChoice[l.id];
+            if (val && val !== l.disposition) {
+              submitDisposition(l.id);
+            } else {
+              setOpenDispositionFor(null);
+              setDispositionChoice((prev) => {
+                const next = { ...prev };
+                delete next[l.id];
+                return next;
+              });
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const val = dispositionChoice[l.id];
+              if (val) submitDisposition(l.id);
+            }
+            if (e.key === "Escape") {
+              setOpenDispositionFor(null);
+              setDispositionChoice((prev) => {
+                const next = { ...prev };
+                delete next[l.id];
+                return next;
+              });
+            }
+          }}
+        >
+          <option value="">Select…</option>
+          <option value="interested">Interested</option>
+          <option value="callback_later">Callback Later</option>
+          <option value="not_reachable">Not Reachable</option>
+        </select>
+        {disposingId === l.id && (
+          <span style={{ fontSize: 11, color: "#9AA1AC", marginLeft: 4 }}>Saving…</span>
+        )}
+      </div>
+    );
+  }
+
+  const current = l.disposition;
+  if (!current) {
+    return (
+      <button
+        onClick={() => setOpenDispositionFor(l.id)}
+        style={{
+          border: "1px dashed #D9DCE3",
+          background: "#FAFBFC",
+          color: "#9AA1AC",
+          borderRadius: 6,
+          padding: "4px 10px",
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        + Set Status
+      </button>
+    );
+  }
+
+  const style = DISPOSITION_STYLES[current] ?? { bg: "#EEF0F5", color: "#5B6472", label: current };
+  return (
+    <button
+      onClick={() => setOpenDispositionFor(l.id)}
+      title="Click to change status"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "3px 8px",
+        borderRadius: 20,
+        border: "none",
+        background: style.bg,
+        color: style.color,
+        fontSize: 11.5,
+        fontWeight: 600,
+        cursor: "pointer",
+      }}
+    >
+      {style.label}
+      <svg width="10" height="10" viewBox="0 0 16 16" style={{ opacity: 0.5 }}>
+        <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
 }
 
 function renderNextAction(l: CallRow, onOpen: (c: CallRow) => void): React.ReactNode {

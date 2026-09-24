@@ -13,7 +13,7 @@ export { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "@/lib/calls.shared";
 const CALL_SELECT = `
   id, candidate_id, number, direction_normalized, duration_seconds, disposition,
   call_time, notes, b2_url, storage_path, resolved_agent_id, application_id, callback_due_at,
-  next_action_type, next_action_at, next_action_note,
+  next_action_type, next_action_at, next_action_note, topic,
   candidate:candidates(id, name, phone),
   agent:users(id, name),
   application:applications(id, job:jobs(id, title, client_id))
@@ -36,6 +36,7 @@ type RawCall = {
   next_action_type: string | null;
   next_action_at: string | null;
   next_action_note: string | null;
+  topic: string | null;
   candidate: { id: string; name: string; phone: string | null } | null;
   agent: { id: string; name: string } | null;
   application: { id: string; job: { id: string; title: string; client_id: string } | null } | null;
@@ -63,6 +64,7 @@ function toCallRow(c: RawCall): CallRow {
     nextActionType: (c.next_action_type as CallRow["nextActionType"]) ?? null,
     nextActionAt: c.next_action_at ?? null,
     nextActionNote: c.next_action_note ?? null,
+    topic: c.topic,
   };
 }
 
