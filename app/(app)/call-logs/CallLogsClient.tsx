@@ -15,11 +15,11 @@ import {
   CallButton,
   type SortKey,
   type DateRange,
-  type ApplicationStatus,
   ALL_STATUSES,
 } from "@/components/ListFilters";
 import { PAGE_SIZES, type CallRow } from "@/lib/calls.shared";
 import { statusStyles } from "@/lib/mock/styles";
+import type { ApplicationStatus } from "@/lib/mock/candidates";
 
 type CallLogsTab = "all" | "unattributed";
 type TypeFilter = "All" | "Outgoing" | "Incoming";
