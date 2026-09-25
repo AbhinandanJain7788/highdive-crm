@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/server";
 import { rangeOverflow, escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
-import type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition } from "@/lib/calls.shared";
+import type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition, ApplicationStatus } from "@/lib/calls.shared";
 
 export type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition } from "@/lib/calls.shared";
 export { PAGE_SIZES, DEFAULT_PAGE_SIZE } from "@/lib/calls.shared";
@@ -62,6 +62,8 @@ function toCallRow(c: RawCall): CallRow {
     applicationId: c.application_id,
     jobTitle: c.application?.job?.title ?? null,
     applicationStatus: c.application?.status ?? null,
+    fallbackApplicationId: null,
+    fallbackApplicationStatus: null,
     nextActionType: (c.next_action_type as CallRow["nextActionType"]) ?? null,
     nextActionAt: c.next_action_at ?? null,
     nextActionNote: c.next_action_note ?? null,
@@ -297,8 +299,48 @@ export async function getCallRows(
 
   const rows = (data ?? []).map(toCallRow);
   await applyNameFallback(supabase, rows);
+  await attachApplicationInfo(supabase, rows);
   await applyRecordingFallback(rows);
   return { rows, total: count ?? 0 };
+}
+
+// For calls without an application_id, look up the candidate's most recent
+// application so the CRM Status column still works end-to-end.
+async function attachApplicationInfo(supabase: SupabaseClient<Database>, rows: CallRow[]): Promise<void> {
+  const candidates = new Set<string>();
+  for (const r of rows) {
+    if (r.applicationId) continue;
+    const cid = r.candidateId;
+    if (cid) candidates.add(cid);
+  }
+  if (!candidates.size) return;
+
+  const { data, error } = await supabase
+    .from("applications")
+    .select("candidate_id, id, status")
+    .in("candidate_id", [...candidates])
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const byCandidate = new Map<string, { id: string; status: ApplicationStatus }>();
+  for (const a of data ?? []) {
+    if (a.candidate_id && !byCandidate.has(a.candidate_id)) {
+      byCandidate.set(a.candidate_id, { id: a.id, status: a.status as ApplicationStatus });
+    }
+  }
+
+  for (const r of rows) {
+    if (r.applicationId) continue;
+    const cid = r.candidateId;
+    if (cid) {
+      const info = byCandidate.get(cid);
+      if (info) {
+        r.fallbackApplicationId = info.id;
+        r.fallbackApplicationStatus = info.status;
+      }
+    }
+  }
 }
 
 export async function getCallById(supabase: SupabaseClient<Database>, id: number): Promise<CallDetail | null> {

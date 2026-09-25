@@ -399,13 +399,14 @@ export default function CallLogsClient({
     const nextStatus = crmStatusChoice[id];
     if (!nextStatus) return;
     const row = rows.find((r) => r.id === id);
-    if (!row?.applicationId) return;
+    const appId = row?.applicationId || row?.fallbackApplicationId;
+    if (!appId) return;
 
     setUpdatingCrmStatusId(id);
     setCrmStatusError(null);
     setCrmStatusSuccess(null);
     try {
-      const res = await fetch(`/api/applications/${row.applicationId}`, {
+      const res = await fetch(`/api/applications/${appId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status: nextStatus }),
@@ -417,7 +418,7 @@ export default function CallLogsClient({
 
       setRows((prev) =>
         prev.map((r) =>
-          r.id === id ? { ...r, applicationStatus: nextStatus } : r
+          r.id === id ? { ...r, applicationStatus: nextStatus, fallbackApplicationStatus: nextStatus } : r
         )
       );
       setCrmStatusChoice((prev) => {
@@ -1141,7 +1142,10 @@ function renderCrmStatus(
 ): React.ReactNode {
   const { openCrmStatusFor, updatingCrmStatusId, crmStatusChoice, setOpenCrmStatusFor, setCrmStatusChoice, submitCrmStatus } = props;
 
-  if (!l.applicationId) {
+  const appId = l.applicationId || l.fallbackApplicationId;
+  const appStatus = l.applicationStatus || l.fallbackApplicationStatus;
+
+  if (!appId) {
     return <span style={{ fontSize: 12, color: "#9AA1AC" }}>--</span>;
   }
 
@@ -1150,7 +1154,7 @@ function renderCrmStatus(
       <div style={{ position: "relative" }}>
         <select
           autoFocus
-          value={crmStatusChoice[l.id] ?? l.applicationStatus ?? ""}
+          value={crmStatusChoice[l.id] ?? appStatus ?? ""}
           onChange={(e) => {
             setCrmStatusChoice((prev) => ({ ...prev, [l.id]: e.target.value as ApplicationStatus }));
           }}
@@ -1168,7 +1172,7 @@ function renderCrmStatus(
           }}
           onBlur={() => {
             const val = crmStatusChoice[l.id];
-            if (val && val !== l.applicationStatus) {
+            if (val && val !== appStatus) {
               submitCrmStatus(l.id);
             } else {
               setOpenCrmStatusFor(null);
@@ -1208,7 +1212,7 @@ function renderCrmStatus(
     );
   }
 
-  const current = l.applicationStatus;
+  const current = appStatus;
   if (!current) {
     return (
       <button

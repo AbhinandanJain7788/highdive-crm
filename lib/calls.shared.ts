@@ -30,6 +30,8 @@ export type CallRow = {
   applicationId: string | null;
   jobTitle: string | null;
   applicationStatus: ApplicationStatus | null;
+  fallbackApplicationId: string | null;
+  fallbackApplicationStatus: ApplicationStatus | null;
   nextActionType: "follow_up" | "interview_scheduled" | null;
   nextActionAt: string | null;
   nextActionNote: string | null;
