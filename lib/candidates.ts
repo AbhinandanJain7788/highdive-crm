@@ -102,6 +102,7 @@ function toCandidateRow(c: RawCandidate): CandidateRow {
     applicationCount: c.applications?.length ?? 0,
     lastContact: null,
     nextDue: null,
+    lastCallDisposition: null,
   };
 }
 
