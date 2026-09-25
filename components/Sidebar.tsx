@@ -250,7 +250,7 @@ const navAdministration: NavItem[] = [
 ];
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
-  const color = active ? "#FF5C35" : "#8A93A3";
+  const color = active ? "#FF7A54" : "#8891A3";
   return (
     <Link
       href={item.href}
@@ -259,13 +259,14 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
         alignItems: "center",
         gap: 10,
         padding: "9px 10px",
-        borderRadius: 6,
+        borderRadius: 8,
         cursor: "pointer",
         marginBottom: 2,
-        background: active ? "#FFF0EA" : "transparent",
-        color: active ? "#FF5C35" : "#4B5565",
+        background: active ? "rgba(255,92,53,0.14)" : "transparent",
+        color: active ? "#FF7A54" : "#C4C9D4",
         fontWeight: active ? 600 : 500,
         textDecoration: "none",
+        transition: "background 0.12s ease, color 0.12s ease",
       }}
     >
       {item.icon(color)}
@@ -284,13 +285,20 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href + "/");
   const visible = (item: NavItem) => !item.permission || permissions.includes(item.permission);
 
+  const sectionLabelStyle: React.CSSProperties = {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: "#6B7385",
+    letterSpacing: 0.8,
+    padding: "16px 10px 6px",
+  };
+
   return (
     <div
       style={{
-        width: 216,
+        width: 228,
         flexShrink: 0,
-        background: "#FFFFFF",
-        borderRight: "1px solid #E7E9EE",
+        background: "#171B26",
         display: "flex",
         flexDirection: "column",
         padding: "18px 12px",
@@ -298,8 +306,25 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
         minHeight: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "0 10px 20px" }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "#FF5C35", letterSpacing: -0.5 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 10px 22px" }}>
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 8,
+            background: "#FF5C35",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#FFFFFF",
+            flexShrink: 0,
+          }}
+        >
+          HD
+        </div>
+        <span style={{ fontSize: 16, fontWeight: 600, color: "#FFFFFF", letterSpacing: -0.2 }}>
           High Dive
         </span>
       </div>
@@ -308,24 +333,17 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
         <NavRow key={item.href} item={item} active={isActive(item.href)} />
       ))}
 
-
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#FF5C35", letterSpacing: 0.6, padding: "16px 10px 6px" }}>
-        TEMPLATES
-      </div>
+      <div style={sectionLabelStyle}>TEMPLATES</div>
       {navTemplates.filter(visible).map((item) => (
         <NavRow key={item.href} item={item} active={isActive(item.href)} />
       ))}
 
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#FF5C35", letterSpacing: 0.6, padding: "16px 10px 6px" }}>
-        CONFIGURATION
-      </div>
+      <div style={sectionLabelStyle}>CONFIGURATION</div>
       {navConfiguration.filter(visible).map((item) => (
         <NavRow key={item.href} item={item} active={isActive(item.href)} />
       ))}
 
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#FF5C35", letterSpacing: 0.6, padding: "16px 10px 6px" }}>
-        ADMINISTRATION
-      </div>
+      <div style={sectionLabelStyle}>ADMINISTRATION</div>
       {navAdministration.filter(visible).map((item) => (
         <NavRow key={item.href} item={item} active={isActive(item.href)} />
       ))}
@@ -333,17 +351,35 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
       <div
         style={{
           marginTop: "auto",
-          padding: "10px 10px 4px",
-          fontSize: 11,
-          color: "#9AA1AC",
-          borderTop: "1px solid #EEF0F4",
           paddingTop: 14,
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "14px 10px 4px",
         }}
       >
-        Signed in as
-      </div>
-      <div style={{ padding: "0 10px", fontSize: 12.5, fontWeight: 600, color: "#4B5565" }}>
-        {roleName}
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: "rgba(255,92,53,0.16)",
+            color: "#FF7A54",
+            fontSize: 12,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {roleName.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <div style={{ fontSize: 10.5, color: "#6B7385" }}>Signed in as</div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#E4E6EB" }}>{roleName}</div>
+        </div>
       </div>
     </div>
   );

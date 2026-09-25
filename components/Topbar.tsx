@@ -34,14 +34,14 @@ export default function Topbar({ userName, roleName }: TopbarProps) {
   return (
     <div
       style={{
-        height: 60,
+        height: 64,
         flexShrink: 0,
         background: "#FFFFFF",
-        borderBottom: "1px solid #E7E9EE",
+        borderBottom: "1px solid #ECEEF2",
         display: "flex",
         alignItems: "center",
         gap: 16,
-        padding: "0 24px",
+        padding: "0 28px",
       }}
     >
       <div style={{ flex: 1 }} />
@@ -51,15 +51,15 @@ export default function Topbar({ userName, roleName }: TopbarProps) {
           title="Notifications"
           aria-label="Notifications"
           style={{
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             borderRadius: "50%",
             border: "1px solid #E7E9EE",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            background: "#FFFFFF",
+            background: "#FAFBFC",
             position: "relative",
           }}
         >
@@ -99,14 +99,14 @@ export default function Topbar({ userName, roleName }: TopbarProps) {
           <div
             style={{
               position: "absolute",
-              top: 44,
+              top: 46,
               right: 0,
               width: 320,
               maxHeight: 380,
               background: "#FFFFFF",
               border: "1px solid #E7E9EE",
-              borderRadius: 10,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+              borderRadius: 12,
+              boxShadow: "0 8px 24px rgba(16,24,40,0.12)",
               overflow: "hidden",
               zIndex: 100,
             }}
@@ -155,11 +155,11 @@ export default function Topbar({ userName, roleName }: TopbarProps) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", paddingLeft: 6 }}>
         <div
           style={{
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             borderRadius: "50%",
-            background: "#FF5C35",
-            color: "#FFFFFF",
+            background: "#EEEDFE",
+            color: "#3C3489",
             fontSize: 13,
             fontWeight: 600,
             display: "flex",
