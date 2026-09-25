@@ -7,7 +7,7 @@
 
 create table if not exists public.agent_heartbeats (
   id uuid primary key default gen_random_uuid(),
-  user_id text not null references public.users(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
   is_active boolean not null default true,
   current_call_id text null,
   heartbeat_at timestamptz not null default now(),
