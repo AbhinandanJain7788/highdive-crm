@@ -239,7 +239,7 @@ export default function CandidatesClient({
             background: "#FFFFFF",
             border: "1px solid #D9DCE3",
             color: "#1D2433",
-            borderRadius: 6,
+            borderRadius: 8,
             padding: "8px 14px",
             fontSize: 13,
             fontWeight: 600,
@@ -254,11 +254,12 @@ export default function CandidatesClient({
             background: "#FF5C35",
             border: "none",
             color: "#FFFFFF",
-            borderRadius: 6,
+            borderRadius: 8,
             padding: "8px 14px",
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
+            boxShadow: "0 1px 2px rgba(255,92,53,0.24)",
           }}
         >
           + Add Customer
@@ -383,7 +384,7 @@ export default function CandidatesClient({
         </div>
       )}
 
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden", overflowX: "auto" }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", overflow: "hidden", overflowX: "auto" }}>
         <div
           style={{
             display: "grid",

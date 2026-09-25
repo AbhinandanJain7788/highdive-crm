@@ -737,8 +737,9 @@ export default function CallLogsClient({
               }}
               style={{
                 background: "#FFFFFF",
-                border: "1px solid #E7E9EE",
-                borderRadius: 10,
+                border: "1px solid #EDEFF3",
+                borderRadius: 12,
+                boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
                 overflow: "auto",
                 maxHeight: "calc(100vh - 320px)",
               }}
@@ -986,7 +987,7 @@ export default function CallLogsClient({
             </div>
             <span style={{ fontSize: 12.5, color: "#9AA1AC" }}>{unattributedTotal} unattributed</span>
           </div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", overflow: "hidden" }}>
             <div
               style={{
                 display: "grid",

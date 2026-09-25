@@ -130,7 +130,7 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
     <div>
       <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>Team Live Status</div>
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20, alignItems: "start" }}>
-        <div style={{ background: "#FBF3EB", borderRadius: 10, padding: "26px 22px", display: "flex", flexDirection: "column", gap: 26 }}>
+        <div style={{ background: "#FBF3EB", border: "1px solid #F4E4D3", borderRadius: 12, padding: "26px 22px", display: "flex", flexDirection: "column", gap: 26 }}>
           {liveStatusBuckets.map((lb) => (
             <div key={lb.label} style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 170, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -222,7 +222,7 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
             </select>
           </div>
 
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", overflow: "hidden" }}>
             <div
               style={{
                 display: "grid",
