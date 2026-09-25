@@ -108,30 +108,31 @@ export function useClickOutside<T extends HTMLElement>(onOutside: () => void) {
 
 export const iconBtnStyle: React.CSSProperties = {
   position: "relative",
-  width: 34,
-  height: 34,
-  borderRadius: 6,
-  border: "1px solid #E7E9EE",
+  width: 36,
+  height: 36,
+  borderRadius: 8,
+  border: "1px solid #E3E6EC",
   background: "#FFFFFF",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   cursor: "pointer",
+  transition: "background 0.12s ease, border-color 0.12s ease",
 };
 
 export const selectStyle: React.CSSProperties = {
   padding: "8px 12px",
   border: "1px solid #D9DCE3",
-  borderRadius: 6,
+  borderRadius: 8,
   fontSize: 12.5,
   color: "#4B5565",
   background: "#FFFFFF",
 };
 
-export const rangeBtnStyle: React.CSSProperties = { padding: "6px 14px", borderRadius: 6, fontSize: 12.5, cursor: "pointer" };
+export const rangeBtnStyle: React.CSSProperties = { padding: "7px 14px", borderRadius: 7, fontSize: 12.5, fontWeight: 500, cursor: "pointer", transition: "background 0.12s ease, color 0.12s ease" };
 
 export function rangeStyle(active: boolean): React.CSSProperties {
-  return active ? { background: "#1D2433", color: "#FFFFFF" } : { color: "#4B5565" };
+  return active ? { background: "#171B26", color: "#FFFFFF", fontWeight: 600 } : { color: "#4B5565" };
 }
 
 export function pillStyle(active: boolean): React.CSSProperties {
@@ -149,8 +150,8 @@ export function pillStyle(active: boolean): React.CSSProperties {
 
 export function tabStyle(active: boolean): React.CSSProperties {
   return active
-    ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" }
-    : { color: "#4B5565", borderBottom: "2px solid transparent" };
+    ? { color: "#1D2433", borderBottom: "2.5px solid #FF5C35" }
+    : { color: "#8891A3", borderBottom: "2.5px solid transparent" };
 }
 
 /* ---------------------------------- icons --------------------------------- */

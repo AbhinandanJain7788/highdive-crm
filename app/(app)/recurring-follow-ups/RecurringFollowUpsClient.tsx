@@ -59,14 +59,14 @@ export default function RecurringFollowUpsClient({
           style={{ paddingBottom: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, ...tabStyle(rfuTab === "pending") }}
         >
           Pending Followups{" "}
-          <span style={{ background: "#EEF0F5", color: "#4B5565", borderRadius: 10, padding: "1px 8px", fontSize: 12 }}>{counts.pending}</span>
+          <span style={{ background: "#EEF0F5", color: "#4B5565", borderRadius: 20, padding: "2px 9px", fontSize: 11.5, fontWeight: 600 }}>{counts.pending}</span>
         </div>
         <div
           onClick={() => setRfuTab("upcoming")}
           style={{ paddingBottom: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, ...tabStyle(rfuTab === "upcoming") }}
         >
           Upcoming Followups{" "}
-          <span style={{ background: "#EEF0F5", color: "#4B5565", borderRadius: 10, padding: "1px 8px", fontSize: 12 }}>{counts.upcoming}</span>
+          <span style={{ background: "#EEF0F5", color: "#4B5565", borderRadius: 20, padding: "2px 9px", fontSize: 11.5, fontWeight: 600 }}>{counts.upcoming}</span>
         </div>
       </div>
 
