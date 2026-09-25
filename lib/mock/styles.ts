@@ -30,10 +30,7 @@ export const connectionStyles: Record<"connected" | "not_connected", { label: st
   not_connected: { label: "Not Connected", bg: "#FDECEC", color: "#C0392B" },
 };
 
-export const callDispositionStyles: Record<
-  "interested" | "callback_later" | "not_reachable",
-  { label: string; bg: string; color: string }
-> = {
+export const callDispositionStyles: Record<string, { label: string; bg: string; color: string }> = {
   interested: { label: "Interested", bg: "#E6F4EA", color: "#1E7F43" },
   callback_later: { label: "Callback Later", bg: "#FFF4E5", color: "#B15C00" },
   not_reachable: { label: "Not Reachable", bg: "#EEF0F5", color: "#5B6472" },
