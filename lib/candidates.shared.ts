@@ -55,6 +55,7 @@ export type CandidateRow = {
   // when there's no call yet / nothing scheduled.
   lastContact: string | null;
   nextDue: string | null;
+  lastCallDisposition: string | null;
 };
 
 export type CandidateApplication = {

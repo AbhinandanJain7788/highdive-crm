@@ -674,7 +674,7 @@ export default function TeamClient({ initialRows, roles, processes, canManageTea
                   opacity: submitting ? 0.7 : 1,
                 }}
               >
-                {submitting ? "Saving..." : modalMode === "add" ? "Send Invite" : "Save"}
+                {submitting ? "Saving..." : modalMode === "add" ? "Add User" : "Save"}
               </button>
             </div>
           </form>

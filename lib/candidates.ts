@@ -118,7 +118,7 @@ async function attachContactInfo(
   if (ids.length === 0) return rows;
 
   const [{ data: calls, error: callsErr }, { data: dues, error: duesErr }] = await Promise.all([
-    supabase.from("calls").select("candidate_id, call_time").in("candidate_id", ids).order("call_time", { ascending: false }),
+    supabase.from("calls").select("candidate_id, call_time, disposition").in("candidate_id", ids).order("call_time", { ascending: false }),
     supabase
       .from("follow_ups")
       .select("candidate_id, due_at")
@@ -130,8 +130,14 @@ async function attachContactInfo(
   if (duesErr) throw duesErr;
 
   const lastContactMap = new Map<string, string>();
+  const lastDispositionMap = new Map<string, string>();
   for (const call of calls ?? []) {
-    if (call.candidate_id && !lastContactMap.has(call.candidate_id)) lastContactMap.set(call.candidate_id, call.call_time);
+    if (call.candidate_id) {
+      if (!lastContactMap.has(call.candidate_id)) {
+        lastContactMap.set(call.candidate_id, call.call_time);
+        if (call.disposition) lastDispositionMap.set(call.candidate_id, call.disposition);
+      }
+    }
   }
   const nextDueMap = new Map<string, string>();
   for (const fu of dues ?? []) {
@@ -142,6 +148,7 @@ async function attachContactInfo(
     ...r,
     lastContact: lastContactMap.has(r.id) ? formatDisplayDateTime(lastContactMap.get(r.id)!) : null,
     nextDue: nextDueMap.has(r.id) ? formatDisplayDateTime(nextDueMap.get(r.id)!) : null,
+    lastCallDisposition: lastDispositionMap.get(r.id) ?? null,
   }));
 }
 

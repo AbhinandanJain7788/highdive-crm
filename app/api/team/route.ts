@@ -70,10 +70,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email);
+  const { data: inviteData, error: inviteError } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    password: crypto.randomUUID().slice(0, 16),
+  });
   if (inviteError || !inviteData?.user) {
     return NextResponse.json(
-      { error: { code: "invite_failed", message: inviteError?.message ?? "Could not invite user." } },
+      { error: { code: "invite_failed", message: inviteError?.message ?? "Could not create user." } },
       { status: 502 }
     );
   }

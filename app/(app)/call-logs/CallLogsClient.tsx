@@ -17,7 +17,7 @@ import {
   type DateRange,
   ALL_STATUSES,
 } from "@/components/ListFilters";
-import { PAGE_SIZES, type CallRow } from "@/lib/calls.shared";
+import { PAGE_SIZES, type CallRow, type CallDirection } from "@/lib/calls.shared";
 import { statusStyles } from "@/lib/mock/styles";
 import type { ApplicationStatus } from "@/lib/mock/candidates";
 
