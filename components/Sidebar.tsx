@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 type NavItem = {
   href: string;
@@ -250,10 +251,13 @@ const navAdministration: NavItem[] = [
 ];
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
-  const color = active ? "#FF7A54" : "#8891A3";
+  const [hover, setHover] = useState(false);
+  const color = active ? "#FF7A54" : "#9AA3B5";
   return (
     <Link
       href={item.href}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         display: "flex",
         alignItems: "center",
@@ -262,8 +266,9 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
         borderRadius: 8,
         cursor: "pointer",
         marginBottom: 2,
-        background: active ? "rgba(255,92,53,0.14)" : "transparent",
-        color: active ? "#FF7A54" : "#C4C9D4",
+        background: active ? "#242B3D" : hover ? "#1D2333" : "transparent",
+        boxShadow: active ? "inset 3px 0 0 #FF5C35" : "none",
+        color: active ? "#FF7A54" : hover ? "#E4E6EB" : "#9AA3B5",
         fontWeight: active ? 600 : 500,
         textDecoration: "none",
         transition: "background 0.12s ease, color 0.12s ease",

@@ -22,7 +22,7 @@ function fmtDuration(totalSeconds: number): string {
 }
 
 function tabStyle(active: boolean): React.CSSProperties {
-  return active ? { background: "#1D2433", color: "#FFFFFF" } : { color: "#4B5565" };
+  return active ? { background: "#171B26", color: "#FFFFFF" } : { color: "#4B5565" };
 }
 
 function dashTabStyle(active: boolean): React.CSSProperties {
@@ -35,6 +35,22 @@ const STAGE_COLORS: Record<string, string> = {
   "Closed Won": "#1E7F43",
   "Closed Lost": "#C0392B",
 };
+
+const cardStyle: React.CSSProperties = {
+  background: "#FFFFFF",
+  border: "1px solid #EDEFF3",
+  borderRadius: 12,
+  boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
+};
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF5C35", flexShrink: 0 }} />
+      <span style={{ fontSize: 13, fontWeight: 700, color: "#1D2433" }}>{children}</span>
+    </div>
+  );
+}
 
 export default function DashboardClient({ initialData }: { initialData: DashboardData }) {
   const router = useRouter();
@@ -98,7 +114,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
 
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, alignItems: "start", opacity: loading ? 0.6 : 1 }}>
         <div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20, marginBottom: 16 }}>
+          <div style={{ ...cardStyle, padding: 20, marginBottom: 16 }}>
             <div style={{ display: "flex", gap: 20, marginBottom: 16, borderBottom: "1px solid #EEF0F4" }}>
               <div onClick={() => setCallTab("overall")} style={{ paddingBottom: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", ...dashTabStyle(callTab === "overall") }}>
                 Overall - {data.calls.overall.total}
@@ -157,40 +173,46 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
             </div>
           </div>
 
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Open Actions</div>
+          <div style={{ ...cardStyle, padding: 18 }}>
+            <SectionTitle>Open Actions</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
               <div
                 onClick={() => router.push("/allocations")}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 8px", cursor: "pointer" }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "14px 8px", borderRadius: 10, cursor: "pointer" }}
               >
-                <svg width="22" height="22" viewBox="0 0 16 16">
-                  <rect x="2" y="1.5" width="10" height="13" rx="1.4" fill="none" stroke="#7C3AED" strokeWidth="1.3" />
-                  <line x1="4.5" y1="5" x2="9.5" y2="5" stroke="#7C3AED" strokeWidth="1.2" />
-                  <line x1="4.5" y1="8" x2="9.5" y2="8" stroke="#7C3AED" strokeWidth="1.2" />
-                </svg>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#F1EAFE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 16 16">
+                    <rect x="2" y="1.5" width="10" height="13" rx="1.4" fill="none" stroke="#6B3FA0" strokeWidth="1.3" />
+                    <line x1="4.5" y1="5" x2="9.5" y2="5" stroke="#6B3FA0" strokeWidth="1.2" />
+                    <line x1="4.5" y1="8" x2="9.5" y2="8" stroke="#6B3FA0" strokeWidth="1.2" />
+                  </svg>
+                </div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: "#1D2433" }}>{data.openActions.unassigned}</div>
                 <div style={{ fontSize: 12, color: "#6B7280" }}>Allocations</div>
               </div>
               <div
                 onClick={() => router.push("/follow-ups")}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 8px", cursor: "pointer" }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "14px 8px", borderRadius: 10, cursor: "pointer" }}
               >
-                <svg width="22" height="22" viewBox="0 0 16 16">
-                  <rect x="1.5" y="2.5" width="13" height="11" rx="1.4" fill="none" stroke="#2563EB" strokeWidth="1.3" />
-                  <path d="M4 8l2 2 4-4" fill="none" stroke="#2563EB" strokeWidth="1.3" />
-                </svg>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#E8F0FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 16 16">
+                    <rect x="1.5" y="2.5" width="13" height="11" rx="1.4" fill="none" stroke="#1A56DB" strokeWidth="1.3" />
+                    <path d="M4 8l2 2 4-4" fill="none" stroke="#1A56DB" strokeWidth="1.3" />
+                  </svg>
+                </div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: "#1D2433" }}>{data.openActions.pendingFollowUps}</div>
                 <div style={{ fontSize: 12, color: "#6B7280" }}>Followups</div>
               </div>
               <div
                 onClick={() => router.push("/call-logs")}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 8px", cursor: "pointer" }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "14px 8px", borderRadius: 10, cursor: "pointer" }}
               >
-                <svg width="22" height="22" viewBox="0 0 16 16">
-                  <circle cx="8" cy="8" r="6.2" fill="none" stroke="#C0392B" strokeWidth="1.3" />
-                  <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#C0392B" strokeWidth="1.3" />
-                </svg>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#FDECEC", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="6.2" fill="none" stroke="#C0392B" strokeWidth="1.3" />
+                    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#C0392B" strokeWidth="1.3" />
+                  </svg>
+                </div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: "#1D2433" }}>{data.openActions.missedCalls}</div>
                 <div style={{ fontSize: 12, color: "#6B7280" }}>Missed Calls</div>
               </div>
@@ -199,8 +221,8 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Candidates</div>
+          <div style={{ ...cardStyle, padding: 20 }}>
+            <SectionTitle>Candidates</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 20, alignItems: "center", marginBottom: 6 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, paddingRight: 20, borderRight: "1px solid #EEF0F4" }}>
                 <svg width="26" height="26" viewBox="0 0 16 16">
@@ -242,10 +264,8 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
             </div>
           </div>
 
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35" }}>Status</div>
-            </div>
+          <div style={{ ...cardStyle, padding: 20 }}>
+            <SectionTitle>Status</SectionTitle>
             <div style={{ maxHeight: 230, overflowY: "auto" }}>
               {data.candidates.statusList.map((st) => (
                 <div key={st.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid #F4F5F8" }}>
@@ -257,10 +277,10 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
           </div>
 
           {data.agentCallTimes.length > 0 && (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>
+            <div style={{ ...cardStyle, padding: 20 }}>
+              <SectionTitle>
                 Agent Talk Time ({RANGE_TABS.find((r) => r.key === data.range)?.label})
-              </div>
+              </SectionTitle>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[...data.agentCallTimes]
                   .sort((a, b) => b.talkSeconds - a.talkSeconds)
