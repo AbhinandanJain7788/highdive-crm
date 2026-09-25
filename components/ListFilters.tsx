@@ -150,7 +150,7 @@ export function pillStyle(active: boolean): React.CSSProperties {
 
 export function tabStyle(active: boolean): React.CSSProperties {
   return active
-    ? { color: "#1D2433", borderBottom: "2.5px solid #FF5C35" }
+    ? { color: "#1D2433", borderBottom: "2.5px solid #1A56DB" }
     : { color: "#8891A3", borderBottom: "2.5px solid transparent" };
 }
 

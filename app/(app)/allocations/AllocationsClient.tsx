@@ -262,10 +262,10 @@ export default function AllocationsClient({
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#FFF5F2", border: "1px solid #FFDCC9", borderRadius: 12, padding: "10px 18px" }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#FF5C35" }}>{counts.new + counts.attempted}</span>
-          <span style={{ width: 1, height: 22, background: "#FFDCC9" }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>Allocations</span>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
+          {counts.new + counts.attempted}
+          <br />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#4B5565" }}>Allocations</span>
         </div>
         <div
           style={{
@@ -393,7 +393,7 @@ export default function AllocationsClient({
           onClick={() => setBucket("new")}
           style={{ paddingBottom: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, ...tabStyle(bucket === "new") }}
         >
-          New <span style={{ background: "#FF5C35", color: "#FFFFFF", borderRadius: 20, padding: "2px 9px", fontSize: 11.5, fontWeight: 600 }}>{counts.new}</span>
+          New <span style={{ background: "#1A56DB", color: "#FFFFFF", borderRadius: 20, padding: "2px 9px", fontSize: 11.5, fontWeight: 600 }}>{counts.new}</span>
         </div>
         <div
           onClick={() => setBucket("attempted")}

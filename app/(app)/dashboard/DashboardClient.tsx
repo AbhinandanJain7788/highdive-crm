@@ -26,7 +26,7 @@ function tabStyle(active: boolean): React.CSSProperties {
 }
 
 function dashTabStyle(active: boolean): React.CSSProperties {
-  return active ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" } : { color: "#4B5565", borderBottom: "2px solid transparent" };
+  return active ? { color: "#1D2433", borderBottom: "2px solid #1A56DB" } : { color: "#4B5565", borderBottom: "2px solid transparent" };
 }
 
 const STAGE_COLORS: Record<string, string> = {

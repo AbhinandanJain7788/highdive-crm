@@ -535,10 +535,10 @@ export default function CallLogsClient({
       />
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#FFF5F2", border: "1px solid #FFDCC9", borderRadius: 12, padding: "10px 18px" }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#FF5C35" }}>{total}</span>
-          <span style={{ width: 1, height: 22, background: "#FFDCC9" }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>Call Logs</span>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
+          {total}
+          <br />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#4B5565" }}>Call Logs</span>
         </div>
         <div
           style={{

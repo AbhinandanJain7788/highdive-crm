@@ -55,7 +55,11 @@ export const liveStatusLabels: Record<string, string> = {
   offline: "Offline",
 };
 
-export const avatarColors = ["#FF5C35", "#2563EB", "#16A34A", "#7C3AED", "#0F7A6C", "#B15C00", "#DB2777"];
+// Orange is reserved for the brand/primary-action accent, so it's deliberately
+// excluded here — a name-hashed avatar landing on the same orange as the "Add
+// Customer" button and sidebar mark read as one more accent instead of a neutral
+// identity color. Muted jewel tones instead of the old bright primaries.
+export const avatarColors = ["#534AB7", "#185FA5", "#0F6E56", "#993556", "#3B6D11", "#5F5E5A"];
 
 export function avatarColorFor(seed: string) {
   let hash = 0;

@@ -9,7 +9,7 @@ type RfuTab = "pending" | "upcoming";
 
 function tabStyle(active: boolean): React.CSSProperties {
   return active
-    ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" }
+    ? { color: "#1D2433", borderBottom: "2px solid #1A56DB" }
     : { color: "#4B5565", borderBottom: "2px solid transparent" };
 }
 
@@ -112,7 +112,6 @@ export default function RecurringFollowUpsClient({
                   alignItems: "center",
                   padding: "11px 16px",
                   borderBottom: "1px solid #F4F5F8",
-                  borderLeft: "3px solid #FF5C35",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

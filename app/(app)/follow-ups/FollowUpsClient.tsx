@@ -225,10 +225,10 @@ export default function FollowUpsClient({
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#FFF5F2", border: "1px solid #FFDCC9", borderRadius: 12, padding: "10px 18px" }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "#FF5C35" }}>{counts.pending + counts.upcoming}</span>
-          <span style={{ width: 1, height: 22, background: "#FFDCC9" }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>Follow-Ups</span>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
+          {counts.pending + counts.upcoming}
+          <br />
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#4B5565" }}>Follow-Ups</span>
         </div>
         <div style={{ flex: 1, maxWidth: 250, display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", border: "1px solid #D9DCE3", borderRadius: 7, padding: "8px 12px" }}>
           <input
