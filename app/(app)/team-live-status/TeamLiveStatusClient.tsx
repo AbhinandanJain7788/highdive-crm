@@ -6,15 +6,16 @@ import type { LiveStatusRow } from "@/lib/team";
 import { formatSinceClient } from "./formatSinceClient";
 
 type Row = LiveStatusRow & { sinceLabel: string };
-type SortOrder = "Name: A-Z" | "Name: Z-A";
-type LiveStatusValue = LiveStatusRow["liveStatus"];
 
-// The source prototype's board has 7 fixed status buckets (Idle / On Call / Wrapping up /
-// On Break / Checked Out / Logged Out / Hasn't Logged in), but the `live_status` enum only
-// carries 4 real values (idle / on_call / on_break / offline). We map the 4 real values onto
-// their closest bucket (offline -> "Logged Out") and keep the other 3 buckets at 0, exactly
-// as the source itself does for buckets its own seed never populates. See ui-gaps.md item 16.
-const BUCKET_DEFS: { label: string; dotColor: string; barColor: string; userLiveStatus: LiveStatusValue | null }[] = [
+function fmtDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "0m";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+const BUCKET_DEFS: { label: string; dotColor: string; barColor: string; userLiveStatus: LiveStatusRow["liveStatus"] | null }[] = [
   { label: "Idle", dotColor: "#D97706", barColor: "#D9DCE3", userLiveStatus: "idle" },
   { label: "On Call", dotColor: "#16A34A", barColor: "#8FD9A8", userLiveStatus: "on_call" },
   { label: "Wrapping up", dotColor: "#2563EB", barColor: "#B7CCF7", userLiveStatus: null },
@@ -24,22 +25,29 @@ const BUCKET_DEFS: { label: string; dotColor: string; barColor: string; userLive
   { label: "Hasn't Logged in", dotColor: "#C0392B", barColor: "#F4C6C0", userLiveStatus: null },
 ];
 
-const STATUS_OPTIONS: { value: LiveStatusValue; label: string }[] = [
+const STATUS_OPTIONS: { value: LiveStatusRow["liveStatus"]; label: string }[] = [
   { value: "on_call", label: "On Call" },
   { value: "idle", label: "Idle" },
   { value: "on_break", label: "On Break" },
   { value: "offline", label: "Logged Out" },
 ];
 
-// Phase 9 fix: Call Tracking / Call Recording / Version were decorative — every row
-// hardcoded to the source's common case (Enabled/Enabled/v8.2.1), no backing columns.
-// migration 0031 added real `users.call_tracking_enabled/call_recording_enabled/
-// app_version` columns (CRM-side settings, not live Android telemetry — claude.md
-// forbids touching the Android app) and these filters now query them for real.
+function HeartbeatDot({ active, sinceLabel }: { active: boolean | null; sinceLabel: string | null }) {
+  if (active === null && !sinceLabel) return null;
+  const color = active === true ? "#16A34A" : active === false ? "#9AA1AC" : "#D9DCE3";
+  return (
+    <span title={sinceLabel ? `Last heartbeat: ${sinceLabel}` : "No heartbeat received"} style={{ display: "inline-flex", alignItems: "center", marginLeft: 6 }}>
+      <svg width="8" height="8" viewBox="0 0 8 8">
+        <circle cx="4" cy="4" r={active === true ? "3.2" : "2.6"} fill={color} />
+      </svg>
+    </span>
+  );
+}
+
 export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row[] }) {
   const [teamStatusSearch, setTeamStatusSearch] = useState("");
-  const [teamStatusSort, setTeamStatusSort] = useState<SortOrder>("Name: A-Z");
-  const [statusFilter, setStatusFilter] = useState<Exclude<LiveStatusValue, null> | "">("");
+  const [teamStatusSort, setTeamStatusSort] = useState<"Name: A-Z" | "Name: Z-A">("Name: A-Z");
+  const [statusFilter, setStatusFilter] = useState<Exclude<LiveStatusRow["liveStatus"], null> | "">("");
   const [trackingFilter, setTrackingFilter] = useState<"" | "true" | "false">("");
   const [recordingFilter, setRecordingFilter] = useState<"" | "true" | "false">("");
   const [versionFilter, setVersionFilter] = useState("");
@@ -82,21 +90,38 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
   const tlq = teamStatusSearch.trim().toLowerCase();
   const teamLiveRows = rows
     .filter((m) => !tlq || m.name.toLowerCase().includes(tlq))
-    .map((m) => ({
-      ...m,
-      avatarLetter: m.name.charAt(0).toUpperCase(),
-      roleLabel: m.role?.name ?? "--",
-      trackLabel: m.callTrackingEnabled ? "Enabled" : "Disabled",
-      trackBg: m.callTrackingEnabled ? "#E6F4EA" : "#FDECEC",
-      trackColor: m.callTrackingEnabled ? "#1E7F43" : "#C0392B",
-      recLabel: m.callRecordingEnabled ? "Enabled" : "Disabled",
-      recBg: m.callRecordingEnabled ? "#E6F4EA" : "#FDECEC",
-      recColor: m.callRecordingEnabled ? "#1E7F43" : "#C0392B",
-      version: m.appVersion,
-      liveLabel: m.liveStatus ? liveStatusLabels[m.liveStatus] : "--",
-      liveColor: m.liveStatus ? liveStatusColors[m.liveStatus] : "#9AA1AC",
-      sinceLabel: formatSinceClient(m.liveStatusSince),
-    }))
+    .map((m) => {
+      const todaySecs = m.callTimeStats?.todaySeconds ?? 0;
+      const monthSecs = m.callTimeStats?.monthSeconds ?? 0;
+      const callCount = m.callTimeStats?.callCount ?? 0;
+      let barColor = "#D9DCE3";
+      if (todaySecs > 2 * 3600) barColor = "#16A34A";
+      else if (todaySecs > 3600) barColor = "#D97706";
+      else if (todaySecs > 30 * 60) barColor = "#2563EB";
+
+      return {
+        ...m,
+        avatarLetter: m.name.charAt(0).toUpperCase(),
+        roleLabel: m.role?.name ?? "--",
+        trackLabel: m.callTrackingEnabled ? "Enabled" : "Disabled",
+        trackBg: m.callTrackingEnabled ? "#E6F4EA" : "#FDECEC",
+        trackColor: m.callTrackingEnabled ? "#1E7F43" : "#C0392B",
+        recLabel: m.callRecordingEnabled ? "Enabled" : "Disabled",
+        recBg: m.callRecordingEnabled ? "#E6F4EA" : "#FDECEC",
+        recColor: m.callRecordingEnabled ? "#1E7F43" : "#C0392B",
+        version: m.appVersion,
+        liveLabel: m.liveStatus ? liveStatusLabels[m.liveStatus] : "--",
+        liveColor: m.liveStatus ? liveStatusColors[m.liveStatus] : "#9AA1AC",
+        sinceLabel: formatSinceClient(m.liveStatusSince),
+        todayTime: fmtDuration(todaySecs),
+        monthTime: fmtDuration(monthSecs),
+        callCount,
+        timeBarColor: barColor,
+        timeBarWidth: `${Math.max(4, Math.min(100, Math.round((todaySecs / (8 * 3600)) * 100)))}%`,
+        heartbeatActive: m.heartbeatActive,
+        lastHeartbeatSince: m.lastHeartbeatAt ? formatSinceClient(m.lastHeartbeatAt) : null,
+      };
+    })
     .sort((a, b) => (teamStatusSort === "Name: Z-A" ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name)));
 
   const selectStyle: React.CSSProperties = { padding: "9px 14px", border: "1px solid #D9DCE3", borderRadius: 7, fontSize: 13, color: "#4B5565", background: "#FFFFFF" };
@@ -155,7 +180,7 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as Exclude<LiveStatusValue, null> | "")}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               style={{ ...selectStyle, minWidth: 180 }}
             >
               <option value="">Status: Select Filters</option>
@@ -165,12 +190,12 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
                 </option>
               ))}
             </select>
-            <select value={trackingFilter} onChange={(e) => setTrackingFilter(e.target.value as "" | "true" | "false")} style={{ ...selectStyle, minWidth: 160 }}>
+            <select value={trackingFilter} onChange={(e) => setTrackingFilter(e.target.value as typeof trackingFilter)} style={{ ...selectStyle, minWidth: 160 }}>
               <option value="">Call Tracking: Any</option>
               <option value="true">Enabled</option>
               <option value="false">Disabled</option>
             </select>
-            <select value={recordingFilter} onChange={(e) => setRecordingFilter(e.target.value as "" | "true" | "false")} style={{ ...selectStyle, minWidth: 170 }}>
+            <select value={recordingFilter} onChange={(e) => setRecordingFilter(e.target.value as typeof recordingFilter)} style={{ ...selectStyle, minWidth: 170 }}>
               <option value="">Call Recording: Any</option>
               <option value="true">Enabled</option>
               <option value="false">Disabled</option>
@@ -189,7 +214,7 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
             <span style={{ fontSize: 13, color: "#9AA1AC" }}>Sort by</span>
             <select
               value={teamStatusSort}
-              onChange={(e) => setTeamStatusSort(e.target.value as SortOrder)}
+              onChange={(e) => setTeamStatusSort(e.target.value as typeof teamStatusSort)}
               style={{ ...selectStyle, minWidth: 130 }}
             >
               <option value="Name: A-Z">Name: A-Z</option>
@@ -201,7 +226,7 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.6fr 1.2fr 1.2fr 0.9fr 1.1fr",
+                gridTemplateColumns: "1.4fr 1fr 1fr 0.8fr 1fr 0.8fr",
                 gap: 10,
                 padding: "11px 16px",
                 fontSize: 11.5,
@@ -214,17 +239,18 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
               }}
             >
               <div>Name</div>
-              <div>Call Tracking Status</div>
-              <div>Call Recording Sta...</div>
+              <div>Call Tracking</div>
+              <div>Call Recording</div>
               <div>Version</div>
               <div>Live Status</div>
+              <div>Today&apos;s Time</div>
             </div>
             {teamLiveRows.map((m) => (
               <div
                 key={m.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.6fr 1.2fr 1.2fr 0.9fr 1.1fr",
+                  gridTemplateColumns: "1.4fr 1fr 1fr 0.8fr 1fr 0.8fr",
                   gap: 10,
                   alignItems: "center",
                   padding: "12px 16px",
@@ -250,7 +276,10 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
                     {m.avatarLetter}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{m.name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{m.name}</div>
+                      <HeartbeatDot active={m.heartbeatActive} sinceLabel={m.lastHeartbeatSince} />
+                    </div>
                     <div style={{ fontSize: 12, color: "#9AA1AC" }}>{m.roleLabel}</div>
                   </div>
                 </div>
@@ -268,6 +297,15 @@ export default function TeamLiveStatusClient({ initialRows }: { initialRows: Row
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: m.liveColor }}>● {m.liveLabel}</div>
                   <div style={{ fontSize: 11.5, color: "#9AA1AC" }}>Since: {m.sinceLabel}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "#1D2433" }}>{m.todayTime}</div>
+                  <div style={{ height: 4, background: "#EEF0F5", borderRadius: 2, marginTop: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", background: m.timeBarColor, width: m.timeBarWidth, borderRadius: 2 }} />
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "#9AA1AC", marginTop: 2 }}>
+                    {m.callCount > 0 ? `${m.callCount} calls` : "No calls"}
+                  </div>
                 </div>
               </div>
             ))}

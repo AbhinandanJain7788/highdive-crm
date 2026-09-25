@@ -6,6 +6,7 @@ import { getFollowUpBucketCounts } from "@/lib/followups";
 import { getCandidateStageSnapshot } from "@/lib/pipeline";
 import type { CurrentUserProfile } from "@/lib/permissions";
 import type { CallBucketStats, DashboardData } from "@/lib/dashboard.shared";
+import type { AgentCallTimeStats } from "@/lib/team.shared";
 
 export type { DashboardData, CallBucketStats } from "@/lib/dashboard.shared";
 export type { DashboardRangeKey } from "@/lib/dateRanges";
@@ -57,19 +58,31 @@ export async function getDashboardData(
     .lte("call_time", to);
   if (isScoped) callsQuery = callsQuery.eq("resolved_agent_id", profile.id);
 
-  const [callsResult, followUpCounts, allocNew, stageSnapshot] = await Promise.all([
+  const [callsResult, followUpCounts, allocNew, stageSnapshot, callTimeResult] = await Promise.all([
     callsQuery.returns<RawCall[]>(),
     getFollowUpBucketCounts(supabase, {}),
     supabase.from("v_allocations").select("*", { count: "exact", head: true }).eq("bucket", "new"),
     getCandidateStageSnapshot(supabase, { from, to, recruiterId: isScoped ? profile.id : undefined }),
+    getAgentCallTimeStatsForRange(supabase, from, to, isScoped ? profile.id : undefined),
   ]);
   if (callsResult.error) throw callsResult.error;
   if (allocNew.error) throw allocNew.error;
+  if (callTimeResult.error) throw callTimeResult.error;
 
   const rows = callsResult.data ?? [];
   const outbound = summarize(rows.filter((r) => r.direction_normalized === "outbound"));
   const inbound = summarize(rows.filter((r) => r.direction_normalized === "inbound"));
   const overall = summarize(rows);
+
+  const agentCallTimes: AgentCallTimeStats[] = (callTimeResult.data ?? []).map((r) => ({
+    userId: r.resolved_agent_id,
+    userName: r.user_name ?? "Unknown",
+    todaySeconds: 0,
+    monthSeconds: 0,
+    allTimeSeconds: 0,
+    callCount: r.call_count,
+    talkSeconds: r.total_seconds,
+  }));
 
   return {
     range: rangeKey,
@@ -77,9 +90,6 @@ export async function getDashboardData(
     openActions: {
       unassigned: allocNew.count ?? 0,
       pendingFollowUps: followUpCounts.pending,
-      // Mirrors Call Logs' own Connected/Not Connected axis (duration_seconds > 0),
-      // scoped to the same selected date range — Call Logs would report the identical
-      // count with the same range + Not Connected filter applied there.
       missedCalls: overall.notConnected,
     },
     candidates: {
@@ -87,5 +97,62 @@ export async function getDashboardData(
       stageBuckets: stageSnapshot.crmStages,
       statusList: stageSnapshot.statusBreakdown,
     },
+    agentCallTimes,
   };
+}
+
+type AgentCallTimeRow = { resolved_agent_id: string; user_name: string | null; total_seconds: number; call_count: number };
+
+async function getAgentCallTimeStatsForRange(
+  supabase: SupabaseClient<Database>,
+  from: string,
+  to: string,
+  scopedUserId?: string
+): Promise<{ data: AgentCallTimeRow[] | null; error: Error | null }> {
+  try {
+    let query = supabase
+      .from("calls")
+      .select("resolved_agent_id, duration_seconds")
+      .gte("call_time", from)
+      .lte("call_time", to)
+      .not("resolved_agent_id", "is", null)
+      .gt("duration_seconds", 0);
+
+    if (scopedUserId) query = query.eq("resolved_agent_id", scopedUserId);
+
+    const { data, error } = await query.returns<{ resolved_agent_id: string; duration_seconds: number | null }[]>();
+    if (error) return { data: null, error };
+
+    const byUser = new Map<string, { total: number; count: number }>();
+    for (const c of data ?? []) {
+      const entry = byUser.get(c.resolved_agent_id) ?? { total: 0, count: 0 };
+      entry.total += c.duration_seconds ?? 0;
+      entry.count += 1;
+      byUser.set(c.resolved_agent_id, entry);
+    }
+
+    const userIds = [...byUser.keys()];
+    if (!userIds.length) return { data: [], error: null };
+
+    const { data: users, error: userError } = await supabase
+      .from("users")
+      .select("id, name")
+      .in("id", userIds);
+
+    if (userError) return { data: null, error: userError };
+
+    const nameById = new Map((users ?? []).map((u) => [u.id, u.name]));
+
+    return {
+      data: [...byUser.entries()].map(([userId, s]) => ({
+        resolved_agent_id: userId,
+        user_name: nameById.get(userId) ?? "Unknown",
+        total_seconds: s.total,
+        call_count: s.count,
+      })),
+      error: null,
+    };
+  } catch (e) {
+    return { data: null, error: e instanceof Error ? e : new Error("Unknown error") };
+  }
 }

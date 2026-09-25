@@ -2,9 +2,11 @@
 // `server-only`/Supabase imports, same reason as lib/allocations.shared.ts.
 import type { DashboardRangeKey } from "@/lib/dateRanges";
 import type { BucketCount } from "@/lib/pipeline";
+import type { AgentCallTimeStats } from "@/lib/team.shared";
 
 export type { DashboardRangeKey } from "@/lib/dateRanges";
 export type { BucketCount } from "@/lib/pipeline";
+export type { AgentCallTimeStats } from "@/lib/team.shared";
 
 export type CallBucketStats = {
   total: number;
@@ -26,4 +28,5 @@ export type DashboardData = {
   calls: { overall: CallBucketStats; outbound: CallBucketStats; inbound: CallBucketStats };
   openActions: { unassigned: number; pendingFollowUps: number; missedCalls: number };
   candidates: { total: number; stageBuckets: BucketCount[]; statusList: BucketCount[] };
+  agentCallTimes: AgentCallTimeStats[];
 };

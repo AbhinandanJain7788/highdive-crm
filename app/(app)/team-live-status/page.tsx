@@ -1,15 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatSince, getLiveStatusRows } from "@/lib/team";
+import { formatSince, getLiveStatusRows, getAgentCallTimeStats, getLatestHeartbeats } from "@/lib/team";
 import TeamLiveStatusClient from "./TeamLiveStatusClient";
 
 export default async function TeamLiveStatusPage() {
   const supabase = await createClient();
-  const rows = await getLiveStatusRows(supabase);
+  const [rows, callTimeStats, heartbeats] = await Promise.all([
+    getLiveStatusRows(supabase),
+    getAgentCallTimeStats(supabase),
+    getLatestHeartbeats(supabase),
+  ]);
 
-  // `formatSince` computes a relative duration from `live_status_since` — done
-  // server-side, at fetch time, so the client component stays free of the
-  // "server-only" lib/team import.
-  const rowsWithSince = rows.map((r) => ({ ...r, sinceLabel: formatSince(r.liveStatusSince) }));
+  const statsByUser = new Map(callTimeStats.map((s) => [s.userId, s]));
 
-  return <TeamLiveStatusClient initialRows={rowsWithSince} />;
+  const rowsWithMeta = rows.map((r) => ({
+    ...r,
+    sinceLabel: formatSince(r.liveStatusSince),
+    callTimeStats: statsByUser.get(r.id) ?? null,
+    heartbeatActive: heartbeats.get(r.id)?.isActive ?? null,
+    lastHeartbeatAt: heartbeats.get(r.id)?.heartbeatAt ?? null,
+  }));
+
+  return <TeamLiveStatusClient initialRows={rowsWithMeta} />;
 }

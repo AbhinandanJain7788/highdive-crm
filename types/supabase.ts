@@ -1422,6 +1422,41 @@ export type Database = {
           },
         ]
       }
+      agent_heartbeats: {
+        Row: {
+          created_at: string
+          current_call_id: string | null
+          heartbeat_at: string
+          id: string
+          is_active: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_call_id?: string | null
+          heartbeat_at?: string
+          id?: string
+          is_active?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_call_id?: string | null
+          heartbeat_at?: string
+          id?: string
+          is_active?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_heartbeats_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_allocations: {

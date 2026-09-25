@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserProfile } from "@/lib/permissions";
-import { getLiveStatusRows } from "@/lib/team";
+import { getLiveStatusRows, getAgentCallTimeStats, getLatestHeartbeats } from "@/lib/team";
 import type { Database } from "@/types/supabase";
 
 type LiveStatus = Database["public"]["Enums"]["live_status"];
 const LIVE_STATUSES: LiveStatus[] = ["on_call", "idle", "on_break", "offline"];
 
-// GET /api/team/live-status — a status board, not sensitive per-user data;
-// any authenticated user can read it (RLS already allows read-all on `users`).
-// Status/Call Tracking/Call Recording/Version filters were previously decorative
-// (Phase 9 finding) — now real query params against real columns.
 export async function GET(request: Request) {
   const profile = await getCurrentUserProfile();
   if (!profile) {
@@ -25,13 +21,26 @@ export async function GET(request: Request) {
 
   const supabase = await createClient();
   try {
-    const rows = await getLiveStatusRows(supabase, {
-      liveStatus: LIVE_STATUSES.includes(statusParam as LiveStatus) ? (statusParam as LiveStatus) : undefined,
-      callTracking: trackingParam === "true" ? true : trackingParam === "false" ? false : undefined,
-      callRecording: recordingParam === "true" ? true : recordingParam === "false" ? false : undefined,
-      version: versionParam ?? undefined,
-    });
-    return NextResponse.json({ data: rows });
+    const [rows, callTimeStats, heartbeats] = await Promise.all([
+      getLiveStatusRows(supabase, {
+        liveStatus: LIVE_STATUSES.includes(statusParam as LiveStatus) ? (statusParam as LiveStatus) : undefined,
+        callTracking: trackingParam === "true" ? true : trackingParam === "false" ? false : undefined,
+        callRecording: recordingParam === "true" ? true : recordingParam === "false" ? false : undefined,
+        version: versionParam ?? undefined,
+      }),
+      getAgentCallTimeStats(supabase),
+      getLatestHeartbeats(supabase),
+    ]);
+
+    const statsByUser = new Map(callTimeStats.map((s) => [s.userId, s]));
+    const enriched = rows.map((r) => ({
+      ...r,
+      callTimeStats: statsByUser.get(r.id) ?? null,
+      heartbeatActive: heartbeats.get(r.id)?.isActive ?? null,
+      lastHeartbeatAt: heartbeats.get(r.id)?.heartbeatAt ?? null,
+    }));
+
+    return NextResponse.json({ data: enriched });
   } catch {
     return NextResponse.json({ error: { code: "server_error", message: "Failed to load live status." } }, { status: 500 });
   }

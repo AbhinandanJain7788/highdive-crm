@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fmtDuration } from "@/lib/mock";
 import type { DashboardData, DashboardRangeKey } from "@/lib/dashboard.shared";
 
 type CallTab = "overall" | "outbound" | "inbound";
@@ -13,6 +12,14 @@ const RANGE_TABS: { key: DashboardRangeKey; label: string }[] = [
   { key: "last7", label: "Last 7 Days" },
   { key: "last30", label: "Last 30 Days" },
 ];
+
+function fmtDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "0m";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
 
 function tabStyle(active: boolean): React.CSSProperties {
   return active ? { background: "#1D2433", color: "#FFFFFF" } : { color: "#4B5565" };
@@ -248,6 +255,37 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
               ))}
             </div>
           </div>
+
+          {data.agentCallTimes.length > 0 && (
+            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>
+                Agent Talk Time ({RANGE_TABS.find((r) => r.key === data.range)?.label})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {[...data.agentCallTimes]
+                  .sort((a, b) => b.talkSeconds - a.talkSeconds)
+                  .map((a) => {
+                    const maxSecs = data.agentCallTimes[0]?.talkSeconds ?? 1;
+                    const pctWidth = Math.max(4, Math.round((a.talkSeconds / maxSecs) * 100));
+                    const barColor = a.talkSeconds > 2 * 3600 ? "#16A34A" : a.talkSeconds > 3600 ? "#D97706" : "#2563EB";
+                    return (
+                      <div key={a.userId}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontSize: 12.5, color: "#4B5565" }}>{a.userName}</span>
+                          <span style={{ fontSize: 12.5, fontWeight: 600, color: "#1D2433" }}>
+                            {fmtDuration(a.talkSeconds)}
+                            <span style={{ color: "#9AA1AC", fontWeight: 400, marginLeft: 6 }}>({a.callCount} calls)</span>
+                          </span>
+                        </div>
+                        <div style={{ height: 6, background: "#EEF0F5", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ height: "100%", background: barColor, width: `${pctWidth}%`, borderRadius: 3 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
