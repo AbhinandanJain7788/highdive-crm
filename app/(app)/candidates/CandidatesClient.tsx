@@ -8,7 +8,6 @@ import {
   avatarColorFor,
   avatarLetterFor,
   crmStageForStatus,
-  callDispositionStyles,
   type ApplicationStatus,
   type MockCandidate,
 } from "@/lib/mock";
@@ -476,20 +475,6 @@ export default function CandidatesClient({
                     }}
                   >
                     DUP
-                  </span>
-                )}
-                {c.lastCallDisposition && callDispositionStyles[c.lastCallDisposition] && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      padding: "2px 6px",
-                      borderRadius: 20,
-                      background: callDispositionStyles[c.lastCallDisposition].bg,
-                      color: callDispositionStyles[c.lastCallDisposition].color,
-                    }}
-                  >
-                    {callDispositionStyles[c.lastCallDisposition].label}
                   </span>
                 )}
               </div>

@@ -770,7 +770,6 @@ export default function CallLogsClient({
                 <div>Duration</div>
                 <div>Next Action</div>
                 <div>Status</div>
-                <div>CRM Status</div>
               </div>
               {enrichedRows.map((l) => (
                 <div
