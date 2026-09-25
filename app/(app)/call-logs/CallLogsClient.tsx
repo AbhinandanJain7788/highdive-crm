@@ -808,7 +808,7 @@ export default function CallLogsClient({
                               <path d="M11 5V1L6 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H3c0 4.42 3.58 8 8 8s8-3.58-8-8-3.58-8-8-8z" fill="#4B5565" />
                             </svg>
                           </button>
-                          <button onClick={togglePlayPause} title={isPlaying ? "Pause" : "Play"} style={{ ...miniPlayerBtnStyle, width: 24, height: 24, border: "none", background: "#FF5C35", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <button onClick={togglePlayPause} title={isPlaying ? "Pause" : "Play"} style={{ ...miniPlayerBtnStyle, width: 24, height: 24, border: "none", background: "#1A56DB", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             {isPlaying ? (
                               <svg width="8" height="8" viewBox="0 0 12 12"><rect x="2" y="1.5" width="3" height="9" fill="#FFFFFF" /><rect x="7" y="1.5" width="3" height="9" fill="#FFFFFF" /></svg>
                             ) : (
@@ -833,7 +833,7 @@ export default function CallLogsClient({
                                 bottom: 0,
                                 left: 0,
                                 width: `${duration ? Math.min((currentTime / duration) * 100, 100) : 0}%`,
-                                background: "#FF5C35",
+                                background: "#1A56DB",
                                 borderRadius: 2,
                               }}
                             />

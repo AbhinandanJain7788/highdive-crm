@@ -249,7 +249,7 @@ export default function InteractionsClient({
                 alignItems: "center",
                 padding: "11px 16px",
                 borderBottom: "1px solid #F4F5F8",
-                borderLeft: "3px solid #FF5C35",
+                borderLeft: "3px solid #1A56DB",
                 cursor: "pointer",
               }}
             >

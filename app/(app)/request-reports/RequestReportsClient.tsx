@@ -38,7 +38,7 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const reportTabStyle = (active: boolean): React.CSSProperties =>
-    active ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" } : { color: "#9AA1AC", borderBottom: "2px solid transparent" };
+    active ? { color: "#1A56DB", borderBottom: "2px solid #1A56DB" } : { color: "#9AA1AC", borderBottom: "2px solid transparent" };
 
   async function requestReport() {
     setSubmitting(true);
@@ -115,7 +115,7 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
 
       {showHistory && (
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18, marginBottom: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 12 }}>Report History</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 12 }}>Report History</div>
           {historyLoading && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>Loading…</div>}
           {!historyLoading && history.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No reports requested yet.</div>}
           {history.map((h) => {
@@ -132,7 +132,7 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ background: s.bg, color: s.color, fontSize: 11.5, fontWeight: 600, borderRadius: 6, padding: "3px 10px" }}>{s.label}</span>
                   {h.status === "ready" && h.fileUrl && (
-                    <a href={h.fileUrl} download={`${h.reportType}.csv`} style={{ fontSize: 12.5, color: "#FF5C35", fontWeight: 600, textDecoration: "none" }}>
+                    <a href={h.fileUrl} download={`${h.reportType}.csv`} style={{ fontSize: 12.5, color: "#1A56DB", fontWeight: 600, textDecoration: "none" }}>
                       Download
                     </a>
                   )}
@@ -175,14 +175,14 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
                           width: 17,
                           height: 17,
                           borderRadius: "50%",
-                          border: `1.6px solid ${selected ? "#FF5C35" : "#C9CED6"}`,
+                          border: `1.6px solid ${selected ? "#1A56DB" : "#C9CED6"}`,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           flexShrink: 0,
                         }}
                       >
-                        {selected && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF5C35" }} />}
+                        {selected && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#1A56DB" }} />}
                       </div>
                       <div style={{ fontSize: 13.5, color: "#1D2433" }}>{rt}</div>
                     </div>
@@ -243,7 +243,7 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
               disabled={submitting}
               style={{
                 marginTop: 26,
-                background: submitting ? "#C9CED6" : "linear-gradient(180deg,#FF7A50,#FF5C35)",
+                background: submitting ? "#C9CED6" : "linear-gradient(180deg,#FF7A50,#1A56DB)",
                 border: "none",
                 color: "#FFFFFF",
                 borderRadius: 8,

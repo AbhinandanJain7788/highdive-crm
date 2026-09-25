@@ -329,7 +329,7 @@ export default function FollowUpsClient({
                 alignItems: "center",
                 padding: "11px 16px",
                 borderBottom: "1px solid #F4F5F8",
-                borderLeft: "3px solid #FF5C35",
+                borderLeft: "3px solid #1A56DB",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -383,9 +383,9 @@ export default function FollowUpsClient({
                     width: 30,
                     height: 30,
                     borderRadius: "50%",
-                    border: "1px solid #FFD9CC",
-                    background: "#FFF5F2",
-                    color: "#FF5C35",
+                    border: "1px solid #B8CFFA",
+                    background: "#E8F0FE",
+                    color: "#1A56DB",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -401,8 +401,8 @@ export default function FollowUpsClient({
                     width: 30,
                     height: 30,
                     borderRadius: "50%",
-                    border: "1px solid #FFD9CC",
-                    background: "#FFF5F2",
+                    border: "1px solid #B8CFFA",
+                    background: "#E8F0FE",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -412,7 +412,7 @@ export default function FollowUpsClient({
                     <path
                       d="M3 2.5c1.2 0 1.6 2 2 2.6.4.7-.8 1.3-.5 2 .5 1.2 1.7 2.4 2.9 2.9.7.3 1.3-.9 2-.5.6.4 2.6.8 2.6 2 0 1.3-1.2 2-2.4 2C6.9 13.5 2.5 9.1 2.5 4.9c0-1.2.7-2.4 2-2.4z"
                       fill="none"
-                      stroke="#FF5C35"
+                      stroke="#1A56DB"
                       strokeWidth="1.3"
                     />
                   </svg>
@@ -492,7 +492,7 @@ export default function FollowUpsClient({
                 disabled={logSubmitting}
                 style={{
                   flex: 1,
-                  background: "#FF5C35",
+                  background: "#1A56DB",
                   border: "none",
                   color: "#FFFFFF",
                   borderRadius: 6,

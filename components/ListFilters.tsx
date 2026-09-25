@@ -142,9 +142,9 @@ export function pillStyle(active: boolean): React.CSSProperties {
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
-    border: active ? "1px solid #FF5C35" : "1px solid #D9DCE3",
-    background: active ? "#FFF5F2" : "#FFFFFF",
-    color: active ? "#FF5C35" : "#4B5565",
+    border: active ? "1px solid #1A56DB" : "1px solid #D9DCE3",
+    background: active ? "#E8F0FE" : "#FFFFFF",
+    color: active ? "#1A56DB" : "#4B5565",
   };
 }
 
@@ -296,7 +296,7 @@ export function IconButton({
         style={{ ...iconBtnStyle, borderColor: hover ? "#C9CED6" : "#E7E9EE" }}
       >
         {children}
-        {active && <div style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: "50%", background: "#FF5C35" }} />}
+        {active && <div style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: "50%", background: "#1A56DB" }} />}
       </div>
       {hover && (
         <div
@@ -427,7 +427,7 @@ export function CheckboxListPopover({
       </div>
       <button
         onClick={onClose}
-        style={{ marginTop: 10, width: "100%", background: "#FF5C35", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "8px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+        style={{ marginTop: 10, width: "100%", background: "#1A56DB", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "8px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
       >
         OK
       </button>
@@ -462,8 +462,8 @@ export function SortPopover({
               padding: "8px 8px",
               borderRadius: 6,
               cursor: "pointer",
-              color: value === o.key ? "#FF5C35" : "#1D2433",
-              background: value === o.key ? "#FFF5F2" : "transparent",
+              color: value === o.key ? "#1A56DB" : "#1D2433",
+              background: value === o.key ? "#E8F0FE" : "transparent",
               fontWeight: value === o.key ? 700 : 500,
             }}
           >
@@ -613,7 +613,7 @@ export function DateRangeBar({
       </select>
       <button
         onClick={onApply}
-        style={{ background: "transparent", border: "none", color: "#FF5C35", fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "4px 6px" }}
+        style={{ background: "transparent", border: "none", color: "#1A56DB", fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "4px 6px" }}
       >
         Apply
       </button>
@@ -696,7 +696,7 @@ export function MoreFiltersPanel({
                 setMode("status");
                 setStatuses(new Set());
               }}
-              style={{ accentColor: "#FF5C35" }}
+              style={{ accentColor: "#1A56DB" }}
             />
             Status
           </label>
@@ -708,7 +708,7 @@ export function MoreFiltersPanel({
                 setMode("stage");
                 setStatuses(new Set());
               }}
-              style={{ accentColor: "#FF5C35" }}
+              style={{ accentColor: "#1A56DB" }}
             />
             Stage
           </label>
@@ -744,7 +744,7 @@ export function MoreFiltersPanel({
           </button>
           <button
             onClick={() => onApply(mode, statuses, location, priorities)}
-            style={{ flex: 1, padding: "13px", borderRadius: 8, border: "none", background: "#FF5C35", color: "#FFFFFF", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
+            style={{ flex: 1, padding: "13px", borderRadius: 8, border: "none", background: "#1A56DB", color: "#FFFFFF", fontWeight: 600, fontSize: 15, cursor: "pointer" }}
           >
             Update
           </button>
@@ -826,7 +826,7 @@ export function ManageColumnsModal({
               style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 4px", borderBottom: "1px solid #F4F5F8", cursor: "grab", background: dragIndex === i ? "#FAFBFC" : "transparent" }}
             >
               <span style={{ color: "#C9CED6", fontSize: 13 }}>⠿</span>
-              <input type="checkbox" checked onChange={() => removeColumn(id)} style={{ accentColor: "#FF5C35" }} />
+              <input type="checkbox" checked onChange={() => removeColumn(id)} style={{ accentColor: "#1A56DB" }} />
               <span style={{ fontSize: 14, color: "#1D2433" }}>{COLUMN_LABELS[id]}</span>
             </div>
           ))}
@@ -848,7 +848,7 @@ export function ManageColumnsModal({
             <div style={{ background: "#FFFFFF", borderRadius: 8, maxHeight: 210, overflowY: "auto" }}>
               {available.map((id) => (
                 <div key={id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderBottom: "1px solid #F4F5F8", opacity: atLimit ? 0.5 : 1 }}>
-                  <input type="checkbox" checked={false} disabled={atLimit} onChange={() => addColumn(id)} style={{ accentColor: "#FF5C35" }} />
+                  <input type="checkbox" checked={false} disabled={atLimit} onChange={() => addColumn(id)} style={{ accentColor: "#1A56DB" }} />
                   <span style={{ fontSize: 14, color: "#1D2433" }}>{COLUMN_LABELS[id]}</span>
                 </div>
               ))}
@@ -866,7 +866,7 @@ export function ManageColumnsModal({
           </button>
           <button
             onClick={() => onSave(columns)}
-            style={{ padding: "10px 24px", borderRadius: 7, border: "none", background: "#FF5C35", color: "#FFFFFF", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}
+            style={{ padding: "10px 24px", borderRadius: 7, border: "none", background: "#1A56DB", color: "#FFFFFF", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}
           >
             Save Changes
           </button>

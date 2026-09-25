@@ -80,7 +80,7 @@ export default function Topbar({ userName, roleName }: TopbarProps) {
                 minWidth: 16,
                 height: 16,
                 borderRadius: 8,
-                background: notifications.length > 2 ? "#C0392B" : "#FF5C35",
+                background: notifications.length > 2 ? "#C0392B" : "#1A56DB",
                 color: "#FFFFFF",
                 fontSize: 9,
                 fontWeight: 700,

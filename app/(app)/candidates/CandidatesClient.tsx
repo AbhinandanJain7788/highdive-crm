@@ -251,7 +251,7 @@ export default function CandidatesClient({
         <button
           onClick={() => setShowAddCustomer(true)}
           style={{
-            background: "#FF5C35",
+            background: "#1A56DB",
             border: "none",
             color: "#FFFFFF",
             borderRadius: 8,
@@ -259,7 +259,7 @@ export default function CandidatesClient({
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
-            boxShadow: "0 1px 2px rgba(255,92,53,0.24)",
+            boxShadow: "0 1px 2px rgba(26,86,219,0.24)",
           }}
         >
           + Add Customer

@@ -487,7 +487,7 @@ export default function CandidateDetailClient({
                     setAssignEditing(true);
                     setAssignError(null);
                   }}
-                  style={{ fontSize: 12, fontWeight: 600, color: "#FF5C35", cursor: "pointer" }}
+                  style={{ fontSize: 12, fontWeight: 600, color: "#1A56DB", cursor: "pointer" }}
                 >
                   Change
                 </div>
@@ -579,7 +579,7 @@ export default function CandidateDetailClient({
                     disabled={assigning || (assignMode === "manual" && !manualRecruiterId)}
                     style={{
                       flex: 1,
-                      background: "#FF5C35",
+                      background: "#1A56DB",
                       border: "none",
                       color: "#FFFFFF",
                       borderRadius: 6,
@@ -654,7 +654,7 @@ export default function CandidateDetailClient({
           </div>
 
           <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 10 }}>Notes</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 10 }}>Notes</div>
             {canEdit ? (
               <>
                 <textarea
@@ -680,7 +680,7 @@ export default function CandidateDetailClient({
                     disabled={saving === "notes"}
                     style={{
                       marginTop: 8,
-                      background: "#FF5C35",
+                      background: "#1A56DB",
                       border: "none",
                       color: "#FFFFFF",
                       borderRadius: 6,
@@ -702,7 +702,7 @@ export default function CandidateDetailClient({
         </div>
 
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Call History</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Call History</div>
           {calls.length > 0 ? (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1.2fr 1.4fr", gap: 10, padding: "8px 10px", fontSize: 11.5, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", borderBottom: "1px solid #EEF0F4" }}>
@@ -764,7 +764,7 @@ export default function CandidateDetailClient({
                 onClick={scheduleFollowUp}
                 disabled={!primary || !canEdit || !dueAt || scheduling}
                 style={{
-                  background: !primary || !canEdit || !dueAt ? "#F7F8FA" : "#FF5C35",
+                  background: !primary || !canEdit || !dueAt ? "#F7F8FA" : "#1A56DB",
                   border: !primary || !canEdit || !dueAt ? "1px solid #E7E9EE" : "none",
                   color: !primary || !canEdit || !dueAt ? "#9AA1AC" : "#FFFFFF",
                   borderRadius: 6,
@@ -877,7 +877,7 @@ export default function CandidateDetailClient({
                           disabled={completingId === fu.id}
                           title="Mark Complete"
                           style={{
-                            background: "#FF5C35",
+                            background: "#1A56DB",
                             border: "none",
                             color: "#FFFFFF",
                             borderRadius: 6,
@@ -901,7 +901,7 @@ export default function CandidateDetailClient({
       </div>
 
       <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20, marginTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Interviews</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Interviews</div>
 
         {canEdit && (
           <div style={{ border: "1px solid #E7E9EE", borderRadius: 8, padding: 14, marginBottom: 16 }}>
@@ -950,7 +950,7 @@ export default function CandidateDetailClient({
                 onClick={scheduleInterview}
                 disabled={!primary || !interviewAt || scheduling2}
                 style={{
-                  background: !primary || !interviewAt ? "#F7F8FA" : "#FF5C35",
+                  background: !primary || !interviewAt ? "#F7F8FA" : "#1A56DB",
                   border: !primary || !interviewAt ? "1px solid #E7E9EE" : "none",
                   color: !primary || !interviewAt ? "#9AA1AC" : "#FFFFFF",
                   borderRadius: 6,
@@ -1021,7 +1021,7 @@ export default function CandidateDetailClient({
                         disabled={updatingInterviewId === iv.id}
                         title="Mark Completed"
                         style={{
-                          background: "#FF5C35",
+                          background: "#1A56DB",
                           border: "none",
                           color: "#FFFFFF",
                           borderRadius: 6,

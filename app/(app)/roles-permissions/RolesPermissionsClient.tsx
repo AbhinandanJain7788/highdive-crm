@@ -19,7 +19,7 @@ const DOT_COLOR_OPTIONS = [
   { dotColor: "#5B6472", badgeBg: "#EEF0F5" },
   { dotColor: "#1E7F43", badgeBg: "#E6F4EA" },
   { dotColor: "#1A56DB", badgeBg: "#E8F0FE" },
-  { dotColor: "#FF5C35", badgeBg: "#FFE9E1" },
+  { dotColor: "#1A56DB", badgeBg: "#FFE9E1" },
 ];
 
 export default function RolesPermissionsClient({
@@ -102,7 +102,7 @@ export default function RolesPermissionsClient({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+              background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
               border: "none",
               color: "#FFFFFF",
               borderRadius: 7,
@@ -171,15 +171,15 @@ export default function RolesPermissionsClient({
               </div>
               <div style={{ fontSize: 13.5, color: "#4B5565" }}>
                 {preview || "No permissions"}
-                {moreCount > 0 && <span style={{ color: "#FF5C35", fontWeight: 600 }}> +{moreCount} More</span>}
+                {moreCount > 0 && <span style={{ color: "#1A56DB", fontWeight: 600 }}> +{moreCount} More</span>}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "#FF5C35" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, color: "#1A56DB" }}>
                 <svg width="14" height="14" viewBox="0 0 16 16">
-                  <circle cx="6" cy="5" r="2.4" fill="none" stroke="#FF5C35" strokeWidth="1.3" />
+                  <circle cx="6" cy="5" r="2.4" fill="none" stroke="#1A56DB" strokeWidth="1.3" />
                   <path
                     d="M1.5 13.5c0-2.4 2-4 4.5-4s4.5 1.6 4.5 4"
                     fill="none"
-                    stroke="#FF5C35"
+                    stroke="#1A56DB"
                     strokeWidth="1.3"
                   />
                 </svg>
@@ -319,7 +319,7 @@ export default function RolesPermissionsClient({
                 onClick={handleCreate}
                 disabled={submitting}
                 style={{
-                  background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+                  background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
                   border: "none",
                   color: "#FFFFFF",
                   borderRadius: 7,

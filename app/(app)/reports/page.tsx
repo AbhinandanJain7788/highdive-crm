@@ -51,7 +51,7 @@ export default async function ReportsPage({
           />
           <button
             type="submit"
-            style={{ background: "linear-gradient(180deg,#FF7A50,#FF5C35)", border: "none", color: "#FFFFFF", borderRadius: 7, padding: "8px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            style={{ background: "linear-gradient(180deg,#FF7A50,#1A56DB)", border: "none", color: "#FFFFFF", borderRadius: 7, padding: "8px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
           >
             Apply
           </button>
@@ -64,20 +64,20 @@ export default async function ReportsPage({
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Pipeline Funnel</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Pipeline Funnel</div>
           {data.pipelineFunnel.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No pipeline data.</div>}
           {data.pipelineFunnel.map((stage) => (
             <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
               <div style={{ width: 130, fontSize: 12.5, color: "#4B5565", flexShrink: 0 }}>{stage.name}</div>
               <div style={{ flex: 1, height: 8, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "#FF5C35", borderRadius: 4, width: `${Math.max(stage.count > 0 ? 4 : 0, Math.round((stage.count / funnelMax) * 100))}%` }} />
+                <div style={{ height: "100%", background: "#1A56DB", borderRadius: 4, width: `${Math.max(stage.count > 0 ? 4 : 0, Math.round((stage.count / funnelMax) * 100))}%` }} />
               </div>
               <div style={{ width: 28, textAlign: "right", fontSize: 12.5, fontWeight: 600, color: "#1D2433" }}>{stage.count}</div>
             </div>
           ))}
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Call Outcomes</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Call Outcomes</div>
           {data.callOutcomes.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No calls yet.</div>}
           {data.callOutcomes.map((d) => (
             <div key={d.key} style={{ marginBottom: 12 }}>
@@ -97,7 +97,7 @@ export default async function ReportsPage({
         </div>
       </div>
       <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Calls by Recruiter</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Calls by Recruiter</div>
         <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 10 }}>
           Avg Duration is computed over connected calls only (duration &gt; 0) — a not-connected call has no talk time to average in.
         </div>

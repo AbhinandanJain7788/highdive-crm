@@ -228,7 +228,7 @@ export default function WhatsappTemplatesClient({
         <button
           onClick={openCreate}
           style={{
-            background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+            background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
             border: "none",
             color: "#FFFFFF",
             borderRadius: 7,
@@ -268,9 +268,9 @@ export default function WhatsappTemplatesClient({
                   gap: 12,
                   padding: "16px 18px",
                   borderBottom: "1px solid #F4F5F8",
-                  borderLeft: `3px solid ${isActive ? "#FF5C35" : "#16A34A"}`,
+                  borderLeft: `3px solid ${isActive ? "#1A56DB" : "#16A34A"}`,
                   cursor: "pointer",
-                  background: isActive ? "#FFF5F2" : "transparent",
+                  background: isActive ? "#E8F0FE" : "transparent",
                 }}
               >
                 <svg width="18" height="18" viewBox="0 0 16 16" style={{ flexShrink: 0, marginTop: 2 }}>
@@ -419,7 +419,7 @@ export default function WhatsappTemplatesClient({
               onClick={submitForm}
               disabled={saving}
               style={{
-                background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+                background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
                 border: "none",
                 color: "#FFFFFF",
                 borderRadius: 7,

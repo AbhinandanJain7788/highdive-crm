@@ -74,7 +74,7 @@ export default async function RecruiterDetailPage({ params }: { params: Promise<
         </div>
         <div>
           <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 12 }}>Assigned Candidates</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 12 }}>Assigned Candidates</div>
             {recruiter.assignedCandidates.map((c) => {
               const badge = statusStyles[c.status];
               return (
@@ -121,7 +121,7 @@ export default async function RecruiterDetailPage({ params }: { params: Promise<
             )}
           </div>
           <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 12 }}>Recent Call Activity</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 12 }}>Recent Call Activity</div>
             {/* TODO(phase-5): reads the `calls` table (populated by the Android app).
                 Left as an explicit empty state rather than mock rows that would look
                 like this recruiter's real call history. */}

@@ -59,7 +59,7 @@ export default function LoginPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
-          <span style={{ fontSize: 24, fontWeight: 700, color: "#FF5C35", letterSpacing: -0.5 }}>
+          <span style={{ fontSize: 24, fontWeight: 700, color: "#1A56DB", letterSpacing: -0.5 }}>
             High Dive
           </span>
         </div>
@@ -151,7 +151,7 @@ export default function LoginPage() {
           disabled={submitting}
           style={{
             width: "100%",
-            background: "#FF5C35",
+            background: "#1A56DB",
             color: "#FFFFFF",
             border: "none",
             borderRadius: 6,

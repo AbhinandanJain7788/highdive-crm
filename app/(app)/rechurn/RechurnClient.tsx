@@ -166,10 +166,10 @@ export default function RechurnClient({ recruiters, canCommonPool }: { recruiter
           <button
             onClick={getCount}
             disabled={counting}
-            style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", border: "1px solid #FF5C35", color: "#FF5C35", borderRadius: 7, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: counting ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "#FFFFFF", border: "1px solid #1A56DB", color: "#1A56DB", borderRadius: 7, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: counting ? "default" : "pointer" }}
           >
             <svg width="14" height="14" viewBox="0 0 16 16">
-              <path d="M13.5 8A5.5 5.5 0 113.6 4.4M13.5 8V3.5M13.5 8H9" fill="none" stroke="#FF5C35" strokeWidth="1.4" />
+              <path d="M13.5 8A5.5 5.5 0 113.6 4.4M13.5 8V3.5M13.5 8H9" fill="none" stroke="#1A56DB" strokeWidth="1.4" />
             </svg>
             {counting ? "Counting…" : countShown ? count : "Get Count"}
           </button>
@@ -178,8 +178,8 @@ export default function RechurnClient({ recruiters, canCommonPool }: { recruiter
           onClick={() => canCommonPool && setMode("common")}
           style={{ borderTop: "1px solid #EEF0F4", padding: "18px 22px", cursor: canCommonPool ? "pointer" : "not-allowed", display: "flex", alignItems: "flex-start", gap: 14, opacity: canCommonPool ? 1 : 0.5 }}
         >
-          <div style={{ width: 18, height: 18, borderRadius: "50%", border: `1.6px solid ${mode === "common" ? "#FF5C35" : "#C9CED6"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-            {mode === "common" && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF5C35" }} />}
+          <div style={{ width: 18, height: 18, borderRadius: "50%", border: `1.6px solid ${mode === "common" ? "#1A56DB" : "#C9CED6"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+            {mode === "common" && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#1A56DB" }} />}
           </div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>Assign in Common Pool</div>
@@ -190,8 +190,8 @@ export default function RechurnClient({ recruiters, canCommonPool }: { recruiter
         </div>
         <div style={{ borderTop: "1px solid #EEF0F4" }}>
           <div onClick={() => setMode("specific")} style={{ padding: "18px 22px", cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 14 }}>
-            <div style={{ width: 18, height: 18, borderRadius: "50%", border: `1.6px solid ${mode === "specific" ? "#FF5C35" : "#C9CED6"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-              {mode === "specific" && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF5C35" }} />}
+            <div style={{ width: 18, height: 18, borderRadius: "50%", border: `1.6px solid ${mode === "specific" ? "#1A56DB" : "#C9CED6"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+              {mode === "specific" && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#1A56DB" }} />}
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#1D2433" }}>Change owner to Specific Users</div>
           </div>
@@ -224,7 +224,7 @@ export default function RechurnClient({ recruiters, canCommonPool }: { recruiter
         disabled={!rechurnReady || initiating}
         onClick={initiate}
         style={{
-          background: rechurnReady ? "#FF5C35" : "#9AA1AC",
+          background: rechurnReady ? "#1A56DB" : "#9AA1AC",
           border: "none",
           color: "#FFFFFF",
           borderRadius: 7,

@@ -16,7 +16,7 @@ const dmTabLabels: Record<Exclude<DmTab, "bulkImport">, string> = {
 };
 
 const tabStyle = (active: boolean): React.CSSProperties =>
-  active ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" } : { color: "#4B5565", borderBottom: "2px solid transparent" };
+  active ? { color: "#1A56DB", borderBottom: "2px solid #1A56DB" } : { color: "#4B5565", borderBottom: "2px solid transparent" };
 
 const panelStyle: React.CSSProperties = {
   background: "#FFFFFF",
@@ -27,7 +27,7 @@ const panelStyle: React.CSSProperties = {
 };
 
 const primaryBtn: React.CSSProperties = {
-  background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+  background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
   border: "none",
   color: "#FFFFFF",
   borderRadius: 8,
@@ -569,13 +569,13 @@ function UploadTypeCard({ active, onClick, title, body }: { active: boolean; onC
           width: 18,
           height: 18,
           borderRadius: "50%",
-          border: `1.6px solid ${active ? "#FF5C35" : "#D9DCE3"}`,
+          border: `1.6px solid ${active ? "#1A56DB" : "#D9DCE3"}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        {active && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF5C35" }} />}
+        {active && <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#1A56DB" }} />}
       </div>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#1D2433", marginBottom: 8 }}>{title}</div>
       <div style={{ fontSize: 12.5, color: "#4B5565", lineHeight: 1.5 }}>{body}</div>

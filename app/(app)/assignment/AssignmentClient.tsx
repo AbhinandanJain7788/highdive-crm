@@ -108,7 +108,7 @@ export default function AssignmentClient({
   }
 
   const distributeDisabled = selectedCount === 0 || submitting;
-  const distributeBg = distributeDisabled ? "#D9DCE3" : "#FF5C35";
+  const distributeBg = distributeDisabled ? "#D9DCE3" : "#1A56DB";
 
   const autoModeStyle = isAutoMode
     ? { background: "#FFFFFF", color: "#1D2433", boxShadow: "0 1px 2px rgba(0,0,0,0.08)" }
@@ -236,7 +236,7 @@ export default function AssignmentClient({
         </div>
 
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Recruiter Workload</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Recruiter Workload</div>
           {workload.map((w) => (
             <div key={w.recruiterId} style={{ marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "#1D2433", marginBottom: 5 }}>
@@ -244,7 +244,7 @@ export default function AssignmentClient({
                 <span style={{ fontWeight: 600 }}>{w.assignedCount}</span>
               </div>
               <div style={{ height: 7, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "#FF5C35", borderRadius: 4, width: w.pct }} />
+                <div style={{ height: "100%", background: "#1A56DB", borderRadius: 4, width: w.pct }} />
               </div>
             </div>
           ))}

@@ -183,9 +183,9 @@ export default function CandidateImportPage() {
     }
   }
 
-  const importStepColor1 = importStep >= 1 ? "#FF5C35" : "#EEF0F5";
-  const importStepColor2 = importStep >= 2 ? "#FF5C35" : "#EEF0F5";
-  const importStepColor3 = importStep >= 3 ? "#FF5C35" : "#EEF0F5";
+  const importStepColor1 = importStep >= 1 ? "#1A56DB" : "#EEF0F5";
+  const importStepColor2 = importStep >= 2 ? "#1A56DB" : "#EEF0F5";
+  const importStepColor3 = importStep >= 3 ? "#1A56DB" : "#EEF0F5";
   // Was "skipped as duplicates", which only ever guessed at the reason — a row with
   // no Name is skipped here too. The real breakdown is rendered below instead.
   const importedLabel = result
@@ -253,7 +253,7 @@ export default function CandidateImportPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={busy}
                 style={{
-                  background: "#FF5C35",
+                  background: "#1A56DB",
                   border: "none",
                   color: "#FFFFFF",
                   borderRadius: 6,
@@ -475,7 +475,7 @@ export default function CandidateImportPage() {
               disabled={busy || !jobId}
               title={!jobId ? "Pick a job above first." : undefined}
               style={{
-                background: "#FF5C35",
+                background: "#1A56DB",
                 border: "none",
                 color: "#FFFFFF",
                 borderRadius: 6,
@@ -525,7 +525,7 @@ export default function CandidateImportPage() {
             )}
             <button
               onClick={() => router.push(doneHref)}
-              style={{ background: "#FF5C35", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "10px 24px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+              style={{ background: "#1A56DB", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "10px 24px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
             >
               {doneLabel}
             </button>

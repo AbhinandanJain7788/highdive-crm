@@ -197,7 +197,7 @@ const cancelBtnStyle: React.CSSProperties = {
 
 const saveBtnStyle: React.CSSProperties = {
   flex: 1,
-  background: "#FF5C35",
+  background: "#1A56DB",
   border: "none",
   color: "#FFFFFF",
   borderRadius: 6,

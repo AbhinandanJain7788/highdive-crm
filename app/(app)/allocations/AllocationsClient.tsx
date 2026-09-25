@@ -247,7 +247,7 @@ export default function AllocationsClient({
           <button
             onClick={() => setShowAddCustomer(true)}
             style={{
-              background: "#FF5C35",
+              background: "#1A56DB",
               border: "none",
               color: "#FFFFFF",
               borderRadius: 6,

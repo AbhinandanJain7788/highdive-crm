@@ -57,7 +57,7 @@ const modalBtnSecondary: React.CSSProperties = {
 
 const modalBtnPrimary: React.CSSProperties = {
   flex: 1,
-  background: "#FF5C35",
+  background: "#1A56DB",
   border: "none",
   color: "#FFFFFF",
   borderRadius: 6,
@@ -370,7 +370,7 @@ export default function CalendarClient({
       inMonth,
       hasEvents: list.length + interviewList.length > 0,
       count: list.length + interviewList.length,
-      cellStyle: highlighted ? { background: "#FF5C35" } : {},
+      cellStyle: highlighted ? { background: "#1A56DB" } : {},
       numColor: highlighted ? "#FFFFFF" : inMonth ? "#1D2433" : "#9AA1AC",
       dotColor: highlighted ? "#FFFFFF" : "#2563EB",
       countColor: highlighted ? "#FFFFFF" : "#2563EB",
@@ -579,7 +579,7 @@ export default function CalendarClient({
                   style={{
                     background: "#FFFFFF",
                     border: "1px solid #E7E9EE",
-                    borderLeft: "3px solid #FF5C35",
+                    borderLeft: "3px solid #1A56DB",
                     borderRadius: 8,
                     padding: "14px 16px",
                     display: "flex",
@@ -626,9 +626,9 @@ export default function CalendarClient({
                       <svg width="14" height="14" viewBox="0 0 16 16"><line x1="4" y1="4" x2="12" y2="12" stroke="#B42318" strokeWidth="1.6" strokeLinecap="round"/><line x1="12" y1="4" x2="4" y2="12" stroke="#B42318" strokeWidth="1.6" strokeLinecap="round"/></svg>
                     </button>
                   </div>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", border: "1px solid #FFD9CC", background: "#FFF5F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", border: "1px solid #B8CFFA", background: "#E8F0FE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     <svg width="16" height="16" viewBox="0 0 16 16">
-                      <path d="M3 2.5c1.2 0 1.6 2 2 2.6.4.7-.8 1.3-.5 2 .5 1.2 1.7 2.4 2.9 2.9.7.3 1.3-.9 2-.5.6.4 2.6.8 2.6 2 0 1.3-1.2 2-2.4 2C6.9 13.5 2.5 9.1 2.5 4.9c0-1.2.7-2.4 2-2.4z" fill="none" stroke="#FF5C35" strokeWidth="1.4" />
+                      <path d="M3 2.5c1.2 0 1.6 2 2 2.6.4.7-.8 1.3-.5 2 .5 1.2 1.7 2.4 2.9 2.9.7.3 1.3-.9 2-.5.6.4 2.6.8 2.6 2 0 1.3-1.2 2-2.4 2C6.9 13.5 2.5 9.1 2.5 4.9c0-1.2.7-2.4 2-2.4z" fill="none" stroke="#1A56DB" strokeWidth="1.4" />
                     </svg>
                   </div>
                 </div>

@@ -252,7 +252,7 @@ const navAdministration: NavItem[] = [
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
   const [hover, setHover] = useState(false);
-  const color = active ? "#FF7A54" : "#9AA3B5";
+  const color = active ? "#4C86F0" : "#9AA3B5";
   return (
     <Link
       href={item.href}
@@ -267,8 +267,8 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
         cursor: "pointer",
         marginBottom: 2,
         background: active ? "#242B3D" : hover ? "#1D2333" : "transparent",
-        boxShadow: active ? "inset 3px 0 0 #FF5C35" : "none",
-        color: active ? "#FF7A54" : hover ? "#E4E6EB" : "#9AA3B5",
+        boxShadow: active ? "inset 3px 0 0 #1A56DB" : "none",
+        color: active ? "#4C86F0" : hover ? "#E4E6EB" : "#9AA3B5",
         fontWeight: active ? 600 : 500,
         textDecoration: "none",
         transition: "background 0.12s ease, color 0.12s ease",
@@ -320,7 +320,7 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
             width: 30,
             height: 30,
             borderRadius: 8,
-            background: "#FF5C35",
+            background: "#1A56DB",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -372,8 +372,8 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
             width: 28,
             height: 28,
             borderRadius: "50%",
-            background: "rgba(255,92,53,0.16)",
-            color: "#FF7A54",
+            background: "rgba(26,86,219,0.16)",
+            color: "#4C86F0",
             fontSize: 12,
             fontWeight: 700,
             display: "flex",

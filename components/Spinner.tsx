@@ -6,7 +6,7 @@ export default function Spinner({ size = 28 }: { size?: number }) {
         height: size,
         borderRadius: "50%",
         border: `${Math.max(2, size / 10)}px solid #EEF0F5`,
-        borderTopColor: "#FF5C35",
+        borderTopColor: "#1A56DB",
         animation: "highdive-spin 0.7s linear infinite",
       }}
     >

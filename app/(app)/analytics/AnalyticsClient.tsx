@@ -137,7 +137,7 @@ export default function AnalyticsClient({
   }, [analyticsTab, range]);
 
   const analyticsTabStyle = (active: boolean): React.CSSProperties =>
-    active ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" } : { color: "#4B5565" };
+    active ? { color: "#1A56DB", borderBottom: "2px solid #1A56DB" } : { color: "#4B5565" };
   const callTrendsModeStyle = (active: boolean): React.CSSProperties =>
     active ? { background: "#FFFFFF", color: "#1D2433", boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : { color: "#6B7280" };
 

@@ -52,7 +52,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               {job.createdOn}
             </div>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 4 }}>Pipeline Breakdown</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 4 }}>Pipeline Breakdown</div>
           {/* Every stage below comes from this job's own pipeline_template_id, in
               sequence_order — a job on a different template renders a different list. */}
           <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 10 }}>
@@ -62,7 +62,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             <div key={stage.stageId} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div style={{ width: 120, fontSize: 12, color: "#4B5565", flexShrink: 0 }}>{stage.stage}</div>
               <div style={{ flex: 1, height: 7, background: "#EEF0F5", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "#FF5C35", borderRadius: 4, width: stage.pct }} />
+                <div style={{ height: "100%", background: "#1A56DB", borderRadius: 4, width: stage.pct }} />
               </div>
               <div style={{ width: 22, textAlign: "right", fontSize: 12, fontWeight: 600, color: "#1D2433" }}>
                 {stage.count}
@@ -76,7 +76,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           )}
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Candidates in this Job</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Candidates in this Job</div>
           <div
             style={{
               display: "grid",
@@ -132,7 +132,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                   </span>
                 </div>
                 <div style={{ fontSize: 12.5, color: "#4B5565" }}>{c.recruiterName ?? "Unassigned"}</div>
-                <div style={{ fontSize: 12, color: "#FF5C35", textAlign: "right" }}>View →</div>
+                <div style={{ fontSize: 12, color: "#1A56DB", textAlign: "right" }}>View →</div>
               </Link>
             );
           })}

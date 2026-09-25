@@ -46,7 +46,7 @@ const cardStyle: React.CSSProperties = {
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF5C35", flexShrink: 0 }} />
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#1A56DB", flexShrink: 0 }} />
       <span style={{ fontSize: 13, fontWeight: 700, color: "#1D2433" }}>{children}</span>
     </div>
   );
@@ -167,7 +167,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                   <rect x="12" y="2" width="3" height="12" fill="#9AA1AC" />
                 </svg>
                 <svg width="14" height="14" viewBox="0 0 14 14">
-                  <path d="M5 2l6 5-6 5" fill="none" stroke="#FF5C35" strokeWidth="1.6" />
+                  <path d="M5 2l6 5-6 5" fill="none" stroke="#1A56DB" strokeWidth="1.6" />
                 </svg>
               </div>
             </div>
@@ -259,7 +259,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                 <rect x="12" y="2" width="3" height="12" fill="#9AA1AC" />
               </svg>
               <svg width="14" height="14" viewBox="0 0 14 14">
-                <path d="M5 2l6 5-6 5" fill="none" stroke="#FF5C35" strokeWidth="1.6" />
+                <path d="M5 2l6 5-6 5" fill="none" stroke="#1A56DB" strokeWidth="1.6" />
               </svg>
             </div>
           </div>

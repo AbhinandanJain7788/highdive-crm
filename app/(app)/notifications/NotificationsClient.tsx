@@ -42,8 +42,8 @@ function Checkbox({ enabled }: { enabled: boolean }) {
         width: 18,
         height: 18,
         borderRadius: 4,
-        border: `1.6px solid ${enabled ? "#FF5C35" : "#D9DCE3"}`,
-        background: enabled ? "#FFF5F2" : "#FFFFFF",
+        border: `1.6px solid ${enabled ? "#1A56DB" : "#D9DCE3"}`,
+        background: enabled ? "#E8F0FE" : "#FFFFFF",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -52,7 +52,7 @@ function Checkbox({ enabled }: { enabled: boolean }) {
     >
       {enabled && (
         <svg width="11" height="11" viewBox="0 0 12 12">
-          <path d="M2 6l3 3 5-6" fill="none" stroke="#FF5C35" strokeWidth="1.8" />
+          <path d="M2 6l3 3 5-6" fill="none" stroke="#1A56DB" strokeWidth="1.8" />
         </svg>
       )}
     </div>

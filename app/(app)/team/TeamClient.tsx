@@ -17,7 +17,7 @@ type TeamClientProps = {
 
 const tabStyle = (active: boolean): React.CSSProperties =>
   active
-    ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" }
+    ? { color: "#1A56DB", borderBottom: "2px solid #1A56DB" }
     : { color: "#4B5565", borderBottom: "2px solid transparent" };
 
 const inputStyle: React.CSSProperties = {
@@ -344,7 +344,7 @@ export default function TeamClient({ initialRows, roles, processes, canManageTea
           <button
             onClick={openAddModal}
             style={{
-              background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+              background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
               border: "none",
               color: "#FFFFFF",
               borderRadius: 7,
@@ -383,7 +383,7 @@ export default function TeamClient({ initialRows, roles, processes, canManageTea
             {t.label}{" "}
             <span
               style={{
-                background: t.key === "active" ? "#FF5C35" : "#EEF0F5",
+                background: t.key === "active" ? "#1A56DB" : "#EEF0F5",
                 color: t.key === "active" ? "#FFFFFF" : "#4B5565",
                 borderRadius: 10,
                 padding: "1px 8px",
@@ -663,7 +663,7 @@ export default function TeamClient({ initialRows, roles, processes, canManageTea
                 type="submit"
                 disabled={submitting}
                 style={{
-                  background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+                  background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
                   border: "none",
                   color: "#FFFFFF",
                   borderRadius: 7,

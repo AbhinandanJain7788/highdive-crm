@@ -44,7 +44,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
         <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Jobs with this Client</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Jobs with this Client</div>
           <div
             style={{
               display: "grid",
@@ -110,7 +110,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       </div>
 
       <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20, marginTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Interviews with this Client</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#1A56DB", marginBottom: 14 }}>Interviews with this Client</div>
         <div
           style={{
             display: "grid",

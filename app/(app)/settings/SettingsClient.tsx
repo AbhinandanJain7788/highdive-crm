@@ -16,7 +16,7 @@ const subViewLabels: Record<Exclude<SubView, "general">, string> = {
 
 const tabStyle = (active: boolean): React.CSSProperties =>
   active
-    ? { color: "#FF5C35", borderBottom: "2px solid #FF5C35" }
+    ? { color: "#1A56DB", borderBottom: "2px solid #1A56DB" }
     : { color: "#4B5565", borderBottom: "2px solid transparent" };
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
@@ -27,7 +27,7 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
         width: 38,
         height: 20,
         borderRadius: 12,
-        background: on ? "#FF5C35" : "#D9DCE3",
+        background: on ? "#1A56DB" : "#D9DCE3",
         position: "relative",
         flexShrink: 0,
         cursor: "pointer",
@@ -229,7 +229,7 @@ export default function SettingsClient({
                 onClick={saveCompany}
                 disabled={companySaving}
                 style={{
-                  background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+                  background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
                   border: "none",
                   color: "#FFFFFF",
                   borderRadius: 7,
@@ -450,7 +450,7 @@ export default function SettingsClient({
                 <button
                   onClick={onResetPassword}
                   style={{
-                    background: "linear-gradient(180deg,#FF7A50,#FF5C35)",
+                    background: "linear-gradient(180deg,#FF7A50,#1A56DB)",
                     border: "none",
                     color: "#FFFFFF",
                     borderRadius: 7,

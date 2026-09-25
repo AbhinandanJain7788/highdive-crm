@@ -15,11 +15,11 @@ html, body {
   border-radius: 4px;
 }
 a {
-  color: #ff5c35;
+  color: #1A56DB;
   text-decoration: none;
 }
 a:hover {
-  color: #e64a25;
+  color: #12409E;
   text-decoration: underline;
 }
 select,
