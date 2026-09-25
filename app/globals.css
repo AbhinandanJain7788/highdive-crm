@@ -61,3 +61,13 @@ textarea,
 [contenteditable="true"] {
   caret-color: auto;
 }
+
+/* Shared row-hover treatment for data tables across the app — a plain
+   background swap, applied via className so table rows read as
+   interactive instead of static text on a page. */
+.hd-row {
+  transition: background 0.1s ease;
+}
+.hd-row:hover {
+  background: #FBFAFC;
+}

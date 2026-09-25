@@ -267,14 +267,16 @@ export default function CandidatesClient({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433" }}>
-          {total}
-          <br />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#4B5565" }}>Customers</span>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#FFF5F2", border: "1px solid #FFDCC9", borderRadius: 12, padding: "10px 18px" }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: "#FF5C35" }}>{total}</span>
+            <span style={{ width: 1, height: 22, background: "#FFDCC9" }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#1D2433" }}>Customers</span>
+          </div>
           {/* Only candidates with an assigned recruiter live here — an unassigned
               one (e.g. a fresh CSV import nobody's picked up yet) is intake, not a
               worked customer, so it shows on Allocations' "New" tab instead. */}
-          <div style={{ fontSize: 11, fontWeight: 500, color: "#9AA1AC", marginTop: 2 }}>Assigned only — unassigned in Allocations</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: "#9AA1AC", marginTop: 4 }}>Assigned only — unassigned in Allocations</div>
         </div>
         <div
           style={{
@@ -425,6 +427,7 @@ export default function CandidatesClient({
           return (
             <div
               key={c.id}
+              className="hd-row"
               onClick={() => {
                 if (isNavigating) return;
                 setOpeningId(c.id);
