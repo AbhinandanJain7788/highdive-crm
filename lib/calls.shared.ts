@@ -4,10 +4,10 @@ import type { Database } from "@/types/supabase";
 
 export type CallDirection = Database["public"]["Enums"]["call_direction"];
 export type CallDisposition = Database["public"]["Enums"]["call_disposition"];
+export type ApplicationStatus = Database["public"]["Enums"]["application_status"];
 
 export const PAGE_SIZES = [10, 25, 50] as const;
 export const DEFAULT_PAGE_SIZE = 25;
-
 // Field names mirror lib/mock/callLogs.ts's MockCallLog shape so Call Logs' existing
 // markup keeps working once it swaps the seed array for this — with `connected`
 // (duration_seconds > 0) kept separate from `disposition` (the live enum's outcome
@@ -29,6 +29,7 @@ export type CallRow = {
   notes: string | null;
   applicationId: string | null;
   jobTitle: string | null;
+  applicationStatus: ApplicationStatus | null;
   nextActionType: "follow_up" | "interview_scheduled" | null;
   nextActionAt: string | null;
   nextActionNote: string | null;

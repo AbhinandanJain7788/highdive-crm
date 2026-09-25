@@ -16,7 +16,7 @@ const CALL_SELECT = `
   next_action_type, next_action_at, next_action_note, topic,
   candidate:candidates(id, name, phone),
   agent:users(id, name),
-  application:applications(id, job:jobs(id, title, client_id))
+  application:applications(id, status, job:jobs(id, title, client_id))
 `;
 
 type RawCall = {
@@ -39,7 +39,7 @@ type RawCall = {
   topic: string | null;
   candidate: { id: string; name: string; phone: string | null } | null;
   agent: { id: string; name: string } | null;
-  application: { id: string; job: { id: string; title: string; client_id: string } | null } | null;
+  application: { id: string; status: ApplicationStatus | null; job: { id: string; title: string; client_id: string } | null } | null;
 };
 
 function toCallRow(c: RawCall): CallRow {
@@ -61,6 +61,7 @@ function toCallRow(c: RawCall): CallRow {
     notes: c.notes,
     applicationId: c.application_id,
     jobTitle: c.application?.job?.title ?? null,
+    applicationStatus: c.application?.status ?? null,
     nextActionType: (c.next_action_type as CallRow["nextActionType"]) ?? null,
     nextActionAt: c.next_action_at ?? null,
     nextActionNote: c.next_action_note ?? null,

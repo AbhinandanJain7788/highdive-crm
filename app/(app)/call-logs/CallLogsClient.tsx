@@ -15,9 +15,10 @@ import {
   CallButton,
   type SortKey,
   type DateRange,
+  statusStyles,
+  type ApplicationStatus,
 } from "@/components/ListFilters";
-import { PAGE_SIZES } from "@/lib/calls.shared";
-import type { CallRow, UnattributedCallRow, CallDirection } from "@/lib/calls.shared";
+import { PAGE_SIZES, APPLICATION_STATUSES, type CallRow, type ApplicationStatus as CallAppStatus } from "@/lib/calls.shared";
 
 type CallLogsTab = "all" | "unattributed";
 type TypeFilter = "All" | "Outgoing" | "Incoming";
@@ -331,6 +332,13 @@ export default function CallLogsClient({
   const [dispositionSuccess, setDispositionSuccess] = useState<string | null>(null);
   const [openDispositionFor, setOpenDispositionFor] = useState<number | null>(null);
 
+  // ---- CRM Status state (linked to the call's application) ----
+  const [crmStatusChoice, setCrmStatusChoice] = useState<Record<number, ApplicationStatus>>({});
+  const [updatingCrmStatusId, setUpdatingCrmStatusId] = useState<number | null>(null);
+  const [crmStatusError, setCrmStatusError] = useState<string | null>(null);
+  const [crmStatusSuccess, setCrmStatusSuccess] = useState<string | null>(null);
+  const [openCrmStatusFor, setOpenCrmStatusFor] = useState<number | null>(null);
+
   // ---- Action completion modal state ----
   const [actionCallId, setActionCallId] = useState<CallRow | null>(null);
   const [completing, setCompleting] = useState(false);
@@ -438,6 +446,46 @@ export default function CallLogsClient({
       setDispositionError(err instanceof Error ? err.message : "Could not set disposition.");
     } finally {
       setDisposingId(null);
+    }
+  }
+
+  async function submitCrmStatus(id: number) {
+    const nextStatus = crmStatusChoice[id];
+    if (!nextStatus) return;
+    const row = rows.find((r) => r.id === id);
+    if (!row?.applicationId) return;
+
+    setUpdatingCrmStatusId(id);
+    setCrmStatusError(null);
+    setCrmStatusSuccess(null);
+    try {
+      const res = await fetch(`/api/applications/${row.applicationId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.error?.message ?? "Could not update status.");
+      }
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, applicationStatus: nextStatus } : r
+        )
+      );
+      setCrmStatusChoice((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setOpenCrmStatusFor(null);
+      setCrmStatusSuccess("Status updated.");
+      setTimeout(() => setCrmStatusSuccess(null), 3000);
+    } catch (err) {
+      setCrmStatusError(err instanceof Error ? err.message : "Could not update status.");
+    } finally {
+      setUpdatingCrmStatusId(null);
     }
   }
 
@@ -675,6 +723,16 @@ export default function CallLogsClient({
       {dispositionSuccess && (
         <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
           {dispositionSuccess}
+        </div>
+      )}
+      {crmStatusError && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B42318", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
+          {crmStatusError}
+        </div>
+      )}
+      {crmStatusSuccess && (
+        <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
+          {crmStatusSuccess}
         </div>
       )}
 
