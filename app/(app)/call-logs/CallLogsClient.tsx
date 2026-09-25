@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { avatarLetterFor } from "@/lib/mock";
-import { avatarColorFor, fmtDuration, callDispositionStyles, callDirectionLabels } from "@/lib/mock/styles";
+import { fmtDuration, callDispositionStyles, callDirectionLabels } from "@/lib/mock/styles";
 import {
   selectStyle,
   CheckboxListPopover,
@@ -15,10 +15,11 @@ import {
   CallButton,
   type SortKey,
   type DateRange,
-  statusStyles,
   type ApplicationStatus,
+  ALL_STATUSES,
 } from "@/components/ListFilters";
-import { PAGE_SIZES, APPLICATION_STATUSES, type CallRow, type ApplicationStatus as CallAppStatus } from "@/lib/calls.shared";
+import { PAGE_SIZES, type CallRow } from "@/lib/calls.shared";
+import { statusStyles } from "@/lib/mock/styles";
 
 type CallLogsTab = "all" | "unattributed";
 type TypeFilter = "All" | "Outgoing" | "Incoming";
@@ -325,14 +326,7 @@ export default function CallLogsClient({
 
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
-  // ---- Disposition state ----
-  const [dispositionChoice, setDispositionChoice] = useState<Record<number, string>>({});
-  const [disposingId, setDisposingId] = useState<number | null>(null);
-  const [dispositionError, setDispositionError] = useState<string | null>(null);
-  const [dispositionSuccess, setDispositionSuccess] = useState<string | null>(null);
-  const [openDispositionFor, setOpenDispositionFor] = useState<number | null>(null);
-
-  // ---- CRM Status state (linked to the call's application) ----
+  // ---- Status state (application status, shared with the Customers tab) ----
   const [crmStatusChoice, setCrmStatusChoice] = useState<Record<number, ApplicationStatus>>({});
   const [updatingCrmStatusId, setUpdatingCrmStatusId] = useState<number | null>(null);
   const [crmStatusError, setCrmStatusError] = useState<string | null>(null);
@@ -399,54 +393,6 @@ export default function CallLogsClient({
   function closeActionModal() {
     setActionCallId(null);
     setCompleting(false);
-  }
-
-  function getDispositionValue(row: CallRow): string {
-    if (row.disposition) return row.disposition;
-    return dispositionChoice[row.id] ?? "";
-  }
-
-  function onDispositionChange(id: number, value: string) {
-    setDispositionChoice((prev) => ({ ...prev, [id]: value }));
-  }
-
-  async function submitDisposition(id: number) {
-    const value = dispositionChoice[id];
-    if (!value) return;
-    setDisposingId(id);
-    setDispositionError(null);
-    setDispositionSuccess(null);
-    try {
-      const res = await fetch(`/api/calls/${id}/disposition`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ disposition: value }),
-      });
-      if (!res.ok) {
-        const b = await res.json().catch(() => null);
-        throw new Error(b?.error?.message ?? "Could not set disposition.");
-      }
-      const result = await res.json();
-      setDispositionSuccess(result.message ?? "Disposition updated.");
-
-      // Refresh the row with the new disposition.
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === id ? { ...r, disposition: value as CallRow["disposition"] } : r
-        )
-      );
-      setDispositionChoice((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      setOpenDispositionFor(null);
-      setTimeout(() => setDispositionSuccess(null), 3000);
-    } catch (err) {
-      setDispositionError(err instanceof Error ? err.message : "Could not set disposition.");
-    } finally {
-      setDisposingId(null);
-    }
   }
 
   async function submitCrmStatus(id: number) {
@@ -715,16 +661,6 @@ export default function CallLogsClient({
           {attributeError}
         </div>
       )}
-      {dispositionError && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B42318", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
-          {dispositionError}
-        </div>
-      )}
-      {dispositionSuccess && (
-        <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
-          {dispositionSuccess}
-        </div>
-      )}
       {crmStatusError && (
         <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B42318", borderRadius: 8, padding: "10px 14px", fontSize: 13, marginBottom: 12 }}>
           {crmStatusError}
@@ -809,7 +745,7 @@ export default function CallLogsClient({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "0.35fr 0.9fr 1.7fr 1fr 1.1fr 1fr 1fr 1.1fr",
+                  gridTemplateColumns: "0.35fr 0.9fr 1.7fr 1fr 1.1fr 1fr 1fr 1.1fr 1.1fr",
                   gap: 10,
                   padding: "10px 16px",
                   fontSize: 11.5,
@@ -819,7 +755,7 @@ export default function CallLogsClient({
                   borderBottom: "1px solid #EEF0F4",
                   background: "#FAFBFC",
                   whiteSpace: "nowrap",
-                  minWidth: 800,
+                  minWidth: 900,
                 }}
               >
                 <div>
@@ -833,19 +769,20 @@ export default function CallLogsClient({
                 <div>Duration</div>
                 <div>Next Action</div>
                 <div>Status</div>
+                <div>CRM Status</div>
               </div>
               {enrichedRows.map((l) => (
                 <div
                   key={l.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "0.35fr 0.9fr 1.7fr 1fr 1.1fr 1fr 1fr 1.1fr",
+                    gridTemplateColumns: "0.35fr 0.9fr 1.7fr 1fr 1.1fr 1fr 1fr 1.1fr 1.1fr",
                     gap: 10,
                     alignItems: "center",
                     padding: "9px 16px",
                     borderBottom: "1px solid #F4F5F8",
                     whiteSpace: "nowrap",
-                    minWidth: 800,
+                    minWidth: 900,
                   }}
                 >
                 <div>
@@ -978,13 +915,13 @@ export default function CallLogsClient({
                 <div style={{ fontSize: 13, color: "#1D2433" }}>{fmtDuration(l.durationSeconds)}</div>
                 <div>{renderNextAction(l, openActionModal)}</div>
                 <div style={{ justifySelf: "start" }}>
-                  {renderDisposition(l, {
-                    openDispositionFor,
-                    disposingId,
-                    dispositionChoice,
-                    setOpenDispositionFor,
-                    setDispositionChoice,
-                    submitDisposition,
+                  {renderCrmStatus(l, {
+                    openCrmStatusFor,
+                    updatingCrmStatusId,
+                    crmStatusChoice,
+                    setOpenCrmStatusFor,
+                    setCrmStatusChoice,
+                    submitCrmStatus,
                   })}
                 </div>
               </div>
@@ -1190,34 +1127,32 @@ function pagerButtonStyle(disabled: boolean): React.CSSProperties {
   };
 }
 
-// -- Disposition renderer --
-const DISPOSITION_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  interested: { bg: "#E6F4EA", color: "#1E7F43", label: "Interested" },
-  callback_later: { bg: "#FFF4E5", color: "#B15C00", label: "Callback Later" },
-  not_reachable: { bg: "#EEF0F5", color: "#5B6472", label: "Not Reachable" },
-};
-
-function renderDisposition(
+// -- Status renderer (applications.status — the same value shown/edited on the Customers tab) --
+function renderCrmStatus(
   l: CallRow,
   props: {
-    openDispositionFor: number | null;
-    disposingId: number | null;
-    dispositionChoice: Record<number, string>;
-    setOpenDispositionFor: (id: number | null) => void;
-    setDispositionChoice: (updater: (prev: Record<number, string>) => Record<number, string>) => void;
-    submitDisposition: (id: number) => void;
+    openCrmStatusFor: number | null;
+    updatingCrmStatusId: number | null;
+    crmStatusChoice: Record<number, ApplicationStatus>;
+    setOpenCrmStatusFor: (id: number | null) => void;
+    setCrmStatusChoice: (updater: (prev: Record<number, ApplicationStatus>) => Record<number, ApplicationStatus>) => void;
+    submitCrmStatus: (id: number) => void;
   }
 ): React.ReactNode {
-  const { openDispositionFor, disposingId, dispositionChoice, setOpenDispositionFor, setDispositionChoice, submitDisposition } = props;
+  const { openCrmStatusFor, updatingCrmStatusId, crmStatusChoice, setOpenCrmStatusFor, setCrmStatusChoice, submitCrmStatus } = props;
 
-  if (openDispositionFor === l.id) {
+  if (!l.applicationId) {
+    return <span style={{ fontSize: 12, color: "#9AA1AC" }}>--</span>;
+  }
+
+  if (openCrmStatusFor === l.id) {
     return (
       <div style={{ position: "relative" }}>
         <select
           autoFocus
-          value={dispositionChoice[l.id] ?? l.disposition ?? ""}
+          value={crmStatusChoice[l.id] ?? l.applicationStatus ?? ""}
           onChange={(e) => {
-            setDispositionChoice((prev) => ({ ...prev, [l.id]: e.target.value }));
+            setCrmStatusChoice((prev) => ({ ...prev, [l.id]: e.target.value as ApplicationStatus }));
           }}
           style={{
             padding: "4px 8px",
@@ -1232,12 +1167,12 @@ function renderDisposition(
             boxSizing: "border-box",
           }}
           onBlur={() => {
-            const val = dispositionChoice[l.id];
-            if (val && val !== l.disposition) {
-              submitDisposition(l.id);
+            const val = crmStatusChoice[l.id];
+            if (val && val !== l.applicationStatus) {
+              submitCrmStatus(l.id);
             } else {
-              setOpenDispositionFor(null);
-              setDispositionChoice((prev) => {
+              setOpenCrmStatusFor(null);
+              setCrmStatusChoice((prev) => {
                 const next = { ...prev };
                 delete next[l.id];
                 return next;
@@ -1246,12 +1181,12 @@ function renderDisposition(
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              const val = dispositionChoice[l.id];
-              if (val) submitDisposition(l.id);
+              const val = crmStatusChoice[l.id];
+              if (val) submitCrmStatus(l.id);
             }
             if (e.key === "Escape") {
-              setOpenDispositionFor(null);
-              setDispositionChoice((prev) => {
+              setOpenCrmStatusFor(null);
+              setCrmStatusChoice((prev) => {
                 const next = { ...prev };
                 delete next[l.id];
                 return next;
@@ -1260,22 +1195,24 @@ function renderDisposition(
           }}
         >
           <option value="">Select…</option>
-          <option value="interested">Interested</option>
-          <option value="callback_later">Callback Later</option>
-          <option value="not_reachable">Not Reachable</option>
+          {ALL_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {statusStyles[s]?.label ?? s}
+            </option>
+          ))}
         </select>
-        {disposingId === l.id && (
+        {updatingCrmStatusId === l.id && (
           <span style={{ fontSize: 11, color: "#9AA1AC", marginLeft: 4 }}>Saving…</span>
         )}
       </div>
     );
   }
 
-  const current = l.disposition;
+  const current = l.applicationStatus;
   if (!current) {
     return (
       <button
-        onClick={() => setOpenDispositionFor(l.id)}
+        onClick={() => setOpenCrmStatusFor(l.id)}
         style={{
           border: "1px dashed #D9DCE3",
           background: "#FAFBFC",
@@ -1292,10 +1229,10 @@ function renderDisposition(
     );
   }
 
-  const style = DISPOSITION_STYLES[current] ?? { bg: "#EEF0F5", color: "#5B6472", label: current };
+  const style = statusStyles[current] ?? { bg: "#EEF0F5", color: "#5B6472", label: current };
   return (
     <button
-      onClick={() => setOpenDispositionFor(l.id)}
+      onClick={() => setOpenCrmStatusFor(l.id)}
       title="Click to change status"
       style={{
         display: "inline-flex",
