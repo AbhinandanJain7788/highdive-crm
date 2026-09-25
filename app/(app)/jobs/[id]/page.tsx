@@ -21,7 +21,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         ← Back to Jobs
       </Link>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 16 }}>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433", marginBottom: 4 }}>{job.title}</div>
           <div style={{ fontSize: 13, color: "#9AA1AC", marginBottom: 16 }}>{job.clientName ?? ""}</div>
           <div
@@ -75,7 +75,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             </div>
           )}
         </div>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Candidates in this Job</div>
           <div
             style={{

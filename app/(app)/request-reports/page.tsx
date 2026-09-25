@@ -7,7 +7,7 @@ export default async function RequestReportsPage() {
   const profile = await getCurrentUserProfile();
   if (!profile?.permissions.includes("request_reports")) {
     return (
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 40, textAlign: "center", color: "#6B7280", fontSize: 13.5 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 40, textAlign: "center", color: "#6B7280", fontSize: 13.5 }}>
         Requesting reports requires the request_reports permission.
       </div>
     );

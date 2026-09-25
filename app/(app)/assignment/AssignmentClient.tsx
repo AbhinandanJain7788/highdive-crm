@@ -121,7 +121,7 @@ export default function AssignmentClient({
     <div data-screen-label="Assignment">
       <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>Assignment &amp; Distribution</div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 18 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{applications.length} candidates awaiting assignment</div>
             <div style={{ display: "flex", gap: 4, background: "#F4F5F8", borderRadius: 7, padding: 3 }}>
@@ -235,7 +235,7 @@ export default function AssignmentClient({
           </div>
         </div>
 
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 18 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Recruiter Workload</div>
           {workload.map((w) => (
             <div key={w.recruiterId} style={{ marginBottom: 14 }}>

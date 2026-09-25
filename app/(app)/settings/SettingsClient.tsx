@@ -205,7 +205,7 @@ export default function SettingsClient({
           {!canManage || !companyState ? (
             <PermissionNotice />
           ) : (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: "26px 30px", maxWidth: 460 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: "26px 30px", maxWidth: 460 }}>
               {(
                 [
                   ["companyName", "Company Name"],
@@ -253,7 +253,7 @@ export default function SettingsClient({
           {!canManage ? (
             <PermissionNotice />
           ) : (
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden", opacity: logsLoading ? 0.6 : 1 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", overflow: "hidden", opacity: logsLoading ? 0.6 : 1 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#FAFBFC", borderBottom: "1px solid #E7E9EE" }}>
@@ -310,14 +310,14 @@ export default function SettingsClient({
       {(subView === "apiConfiguration" || subView === "accountBilling" || subView === "usage") && (
         <div>
           <div style={{ fontSize: 20, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{subViewLabels[subView]}</div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 60, textAlign: "center", fontSize: 13, color: "#9AA1AC" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 60, textAlign: "center", fontSize: 13, color: "#9AA1AC" }}>
             {subViewLabels[subView]} coming soon.
           </div>
         </div>
       )}
 
       {subView === "general" && (
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: "26px 30px" }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: "26px 30px" }}>
           <div
             onClick={() => setSettingsGeneralOpen((v) => !v)}
             style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", marginBottom: 18 }}

@@ -210,7 +210,7 @@ export default function CandidateImportPage() {
       <Link href={cancelHref} style={{ fontSize: 13, color: "#6B7280", cursor: "pointer", marginBottom: 14, display: "block", textDecoration: "none" }}>
         {cancelLabel}
       </Link>
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 32, maxWidth: 720 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 32, maxWidth: 720 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
           <div style={{ flex: 1, height: 4, borderRadius: 2, background: importStepColor1 }} />
           <div style={{ flex: 1, height: 4, borderRadius: 2, background: importStepColor2 }} />

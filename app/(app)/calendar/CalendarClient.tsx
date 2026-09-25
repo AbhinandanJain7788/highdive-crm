@@ -494,7 +494,7 @@ export default function CalendarClient({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 22 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 22 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontSize: 26, color: "#1D2433" }}>
               <span style={{ fontWeight: 700 }}>{MONTH_NAMES[view.month]}</span> <span style={{ fontWeight: 400, color: "#4B5565" }}>{view.year}</span>

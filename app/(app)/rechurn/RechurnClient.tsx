@@ -124,7 +124,7 @@ export default function RechurnClient({ recruiters, canCommonPool }: { recruiter
         <div style={{ marginTop: 14, fontSize: 12.5, color: "#C0392B", background: "#FDECEC", padding: "9px 12px", borderRadius: 6 }}>{error}</div>
       )}
 
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, marginTop: 18, overflow: "hidden" }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", marginTop: 18, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 22px", flexWrap: "wrap" }}>
           <span style={{ fontSize: 13.5, color: "#1D2433" }}>Choose a Date range based on</span>
           <select

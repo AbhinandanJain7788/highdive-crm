@@ -293,9 +293,12 @@ export default function Sidebar({ permissions, roleName }: SidebarProps) {
   const sectionLabelStyle: React.CSSProperties = {
     fontSize: 10.5,
     fontWeight: 700,
-    color: "#6B7385",
-    letterSpacing: 0.8,
-    padding: "16px 10px 6px",
+    color: "#EDEFF3",
+    letterSpacing: 1.2,
+    padding: "6px 10px",
+    marginTop: 14,
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    paddingTop: 16,
   };
 
   return (

@@ -23,7 +23,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         ← Back to Clients
       </Link>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 16 }}>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: "#1D2433", marginBottom: 16 }}>{client.company}</div>
           <div style={{ fontSize: 13, color: "#1D2433", lineHeight: 1.8 }}>
             <div>
@@ -43,7 +43,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
         </div>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Jobs with this Client</div>
           <div
             style={{
@@ -109,7 +109,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20, marginTop: 16 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20, marginTop: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Interviews with this Client</div>
         <div
           style={{

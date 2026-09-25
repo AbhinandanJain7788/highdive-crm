@@ -189,7 +189,7 @@ export default function AnalyticsClient({
       {analyticsTab === "overall" && (
         <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 18, opacity: loading ? 0.6 : 1 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>CALL TRENDS</span>
@@ -278,7 +278,7 @@ export default function AnalyticsClient({
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 16 }}>
-              <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4, marginBottom: 14 }}>LOGIN ANALYTICS</div>
                 <div style={{ marginBottom: 16 }}>
                   <RangeSelect value={range} onChange={setRange} small />
@@ -300,7 +300,7 @@ export default function AnalyticsClient({
                 ))}
               </div>
 
-              <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20, overflowX: "auto" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20, overflowX: "auto" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>TOP 5 USER PERFORMANCES</span>
@@ -339,7 +339,7 @@ export default function AnalyticsClient({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>CUSTOMER STAGES</span>
@@ -378,7 +378,7 @@ export default function AnalyticsClient({
               </div>
             </div>
 
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>CONVERSION FUNNEL</span>
               </div>
@@ -418,7 +418,7 @@ export default function AnalyticsClient({
               )}
             </div>
 
-            <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>CUSTOMERS BY</span>
@@ -476,12 +476,12 @@ export default function AnalyticsClient({
       )}
 
       {analyticsTab === "aiCall" && (
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 60, textAlign: "center", fontSize: 13, color: "#9AA1AC" }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 60, textAlign: "center", fontSize: 13, color: "#9AA1AC" }}>
           AI Call Analytics coming soon.
         </div>
       )}
       {analyticsTab === "userPerf" && (
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #EEF0F4" }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "#4B5565", letterSpacing: 0.4 }}>USER PERFORMANCE</span>
             <RangeSelect value={range} onChange={setRange} small />

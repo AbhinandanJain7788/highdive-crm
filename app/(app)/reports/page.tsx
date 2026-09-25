@@ -17,7 +17,7 @@ export default async function ReportsPage({
   const profile = await getCurrentUserProfile();
   if (!profile?.permissions.includes("view_all_records")) {
     return (
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 40, textAlign: "center", color: "#6B7280", fontSize: 13.5 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 40, textAlign: "center", color: "#6B7280", fontSize: 13.5 }}>
         Reports are only available to users who can view all records.
       </div>
     );
@@ -63,7 +63,7 @@ export default async function ReportsPage({
         </form>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Pipeline Funnel</div>
           {data.pipelineFunnel.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No pipeline data.</div>}
           {data.pipelineFunnel.map((stage) => (
@@ -76,7 +76,7 @@ export default async function ReportsPage({
             </div>
           ))}
         </div>
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 20 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Call Outcomes</div>
           {data.callOutcomes.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No calls yet.</div>}
           {data.callOutcomes.map((d) => (
@@ -96,7 +96,7 @@ export default async function ReportsPage({
           </div>
         </div>
       </div>
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 18 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 14 }}>Calls by Recruiter</div>
         <div style={{ fontSize: 11, color: "#9AA1AC", marginBottom: 10 }}>
           Avg Duration is computed over connected calls only (duration &gt; 0) — a not-connected call has no talk time to average in.

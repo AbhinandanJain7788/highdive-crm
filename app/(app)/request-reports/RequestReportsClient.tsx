@@ -114,7 +114,7 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
       </div>
 
       {showHistory && (
-        <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 18, marginBottom: 18 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 18, marginBottom: 18 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#FF5C35", marginBottom: 12 }}>Report History</div>
           {historyLoading && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>Loading…</div>}
           {!historyLoading && history.length === 0 && <div style={{ fontSize: 12.5, color: "#9AA1AC" }}>No reports requested yet.</div>}
@@ -143,7 +143,7 @@ export default function RequestReportsClient({ initialHistory }: { initialHistor
         </div>
       )}
 
-      <div style={{ background: "#FFFFFF", border: "1px solid #E7E9EE", borderRadius: 10, padding: 26 }}>
+      <div style={{ background: "#FFFFFF", border: "1px solid #EDEFF3", borderRadius: 12, boxShadow: "0 1px 2px rgba(16,24,40,0.04)", padding: 26 }}>
         <div style={{ display: "flex", gap: 36, marginBottom: 2, borderBottom: "1px solid #EEF0F4" }}>
           <div onClick={() => setReportTab("basic")} style={{ paddingBottom: 12, fontSize: 15, fontWeight: 700, cursor: "pointer", ...reportTabStyle(reportTab === "basic") }}>
             Basic Reports
