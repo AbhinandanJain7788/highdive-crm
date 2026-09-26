@@ -85,6 +85,28 @@ export function phoneSearchPattern(query: string): string | null {
   return `%${digits.split("").join("%")}%`;
 }
 
+// Recruiters, the CSV importer, and the "create candidate from a call" flow all
+// receive Indian mobile numbers in whatever shape a human typed them (with/without
+// +91, a leading 0, spaces or dashes). Storing that inconsistently is exactly why a
+// call's number and a candidate's phone can fail to line up elsewhere — so every
+// write path funnels a phone through here first, landing on the seed's own
+// convention ("+91 98201 34567"). Only touches numbers we can confidently parse as a
+// 10-digit Indian mobile; anything else (landlines, other countries) is left as-is
+// rather than guessed at.
+export function normalizePhoneDisplay(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  const local =
+    digits.length > 10 && digits.startsWith("91")
+      ? digits.slice(digits.length - 10)
+      : digits.length === 11 && digits.startsWith("0")
+        ? digits.slice(1)
+        : digits;
+  if (local.length !== 10) return trimmed;
+  return `+91 ${local.slice(0, 5)} ${local.slice(5)}`;
+}
+
 // PostgREST reads `,` and `.` inside an or() filter as syntax; a search term
 // containing them would otherwise change the shape of the query.
 export function escapeFilterValue(value: string): string {

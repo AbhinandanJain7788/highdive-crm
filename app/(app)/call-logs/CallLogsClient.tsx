@@ -115,6 +115,9 @@ export default function CallLogsClient({
   const [attributeChoice, setAttributeChoice] = useState<Record<number, string>>({});
   const [attributing, setAttributing] = useState<number | null>(null);
   const [attributeError, setAttributeError] = useState<string | null>(null);
+  const [newCandidateOpenFor, setNewCandidateOpenFor] = useState<number | null>(null);
+  const [newCandidateName, setNewCandidateName] = useState("");
+  const [creatingCandidate, setCreatingCandidate] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/team")
@@ -505,6 +508,43 @@ export default function CallLogsClient({
       setAttributeError(err instanceof Error ? err.message : "Could not attribute call.");
     } finally {
       setAttributing(null);
+    }
+  }
+
+  function openNewCandidate(row: UnattributedCallRow) {
+    setNewCandidateOpenFor(row.id);
+    setNewCandidateName("");
+    setAttributeError(null);
+  }
+
+  async function submitNewCandidate(row: UnattributedCallRow) {
+    const name = newCandidateName.trim();
+    if (!name) return;
+    setCreatingCandidate(row.id);
+    setAttributeError(null);
+    try {
+      const res = await fetch(`/api/calls/${row.id}/create-candidate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, phone: row.phone }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error?.message ?? "Could not create candidate.");
+      }
+      const updated = body?.data as CallRow | undefined;
+      setUnattributedRows((prev) =>
+        prev.map((r) =>
+          r.id === row.id
+            ? { ...r, candidateId: updated?.candidateId ?? r.candidateId, candidateName: updated?.candidateName ?? name }
+            : r
+        )
+      );
+      setNewCandidateOpenFor(null);
+    } catch (err) {
+      setAttributeError(err instanceof Error ? err.message : "Could not create candidate.");
+    } finally {
+      setCreatingCandidate(null);
     }
   }
 
@@ -1049,38 +1089,84 @@ export default function CallLogsClient({
                       <span style={{ fontSize: 12, color: "#9AA1AC" }}>--</span>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <select
-                      value={attributeChoice[l.id] || ""}
-                      onChange={(e) => onAttributeChoiceChange(l.id, e.target.value)}
-                      disabled={l.candidateJobs.length === 0}
-                      style={{ flex: 1, padding: "6px 8px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12 }}
-                    >
-                      <option value="">{l.candidateJobs.length === 0 ? "No applications" : "Select job…"}</option>
-                      {l.candidateJobs.map((cj) => (
-                        <option key={cj.applicationId} value={cj.applicationId}>
-                          {cj.jobTitle}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => onAttribute(l)}
-                      disabled={!attributeChoice[l.id] || attributing === l.id}
-                      style={{
-                        background: "#1D2433",
-                        border: "none",
-                        color: "#FFFFFF",
-                        borderRadius: 6,
-                        padding: "6px 12px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: !attributeChoice[l.id] || attributing === l.id ? "default" : "pointer",
-                        opacity: !attributeChoice[l.id] ? 0.6 : 1,
-                      }}
-                    >
-                      {attributing === l.id ? "Linking…" : "Link"}
-                    </button>
-                  </div>
+                  {l.candidateId === null ? (
+                    newCandidateOpenFor === l.id ? (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          autoFocus
+                          value={newCandidateName}
+                          onChange={(e) => setNewCandidateName(e.target.value)}
+                          placeholder="Candidate name"
+                          style={{ flex: 1, padding: "6px 8px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12 }}
+                        />
+                        <button
+                          onClick={() => submitNewCandidate(l)}
+                          disabled={!newCandidateName.trim() || creatingCandidate === l.id}
+                          style={{
+                            background: "#1A56DB",
+                            border: "none",
+                            color: "#FFFFFF",
+                            borderRadius: 6,
+                            padding: "6px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: !newCandidateName.trim() || creatingCandidate === l.id ? "default" : "pointer",
+                            opacity: !newCandidateName.trim() ? 0.6 : 1,
+                          }}
+                        >
+                          {creatingCandidate === l.id ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          onClick={() => setNewCandidateOpenFor(null)}
+                          disabled={creatingCandidate === l.id}
+                          style={{ background: "#FFFFFF", border: "1px solid #D9DCE3", color: "#4B5565", borderRadius: 6, padding: "6px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openNewCandidate(l)}
+                        style={{ background: "#1A56DB", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        title="This number never matched an existing candidate — add them to the CRM."
+                      >
+                        New Candidate
+                      </button>
+                    )
+                  ) : (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <select
+                        value={attributeChoice[l.id] || ""}
+                        onChange={(e) => onAttributeChoiceChange(l.id, e.target.value)}
+                        disabled={l.candidateJobs.length === 0}
+                        style={{ flex: 1, padding: "6px 8px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 12 }}
+                      >
+                        <option value="">{l.candidateJobs.length === 0 ? "No applications" : "Select job…"}</option>
+                        {l.candidateJobs.map((cj) => (
+                          <option key={cj.applicationId} value={cj.applicationId}>
+                            {cj.jobTitle}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => onAttribute(l)}
+                        disabled={!attributeChoice[l.id] || attributing === l.id}
+                        style={{
+                          background: "#1D2433",
+                          border: "none",
+                          color: "#FFFFFF",
+                          borderRadius: 6,
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: !attributeChoice[l.id] || attributing === l.id ? "default" : "pointer",
+                          opacity: !attributeChoice[l.id] ? 0.6 : 1,
+                        }}
+                      >
+                        {attributing === l.id ? "Linking…" : "Link"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

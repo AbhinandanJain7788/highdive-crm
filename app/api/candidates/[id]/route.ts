@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserProfile, requirePermission } from "@/lib/permissions";
 import { getCandidateDetail } from "@/lib/candidates";
-import { assignNullableText } from "@/lib/format";
+import { assignNullableText, normalizePhoneDisplay } from "@/lib/format";
 import type { Database } from "@/types/supabase";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -57,7 +57,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
     patch.name = name;
   }
-  if ("phone" in body) assignNullableText(patch, "phone", body.phone);
+  if ("phone" in body) assignNullableText(patch, "phone", typeof body.phone === "string" ? normalizePhoneDisplay(body.phone) : body.phone);
   if ("email" in body) assignNullableText(patch, "email", body.email);
   if ("source" in body) assignNullableText(patch, "source", body.source);
   if ("notes" in body) assignNullableText(patch, "notes", body.notes);

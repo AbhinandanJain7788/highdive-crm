@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/server";
 import { rangeOverflow, escapeFilterValue, formatDisplayDateTime, phoneSearchPattern, type Pagination } from "@/lib/format";
+import { createCandidate } from "@/lib/candidates";
 import type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition, ApplicationStatus } from "@/lib/calls.shared";
 
 export type { CallRow, CallDetail, UnattributedCallRow, CallDirection, CallDisposition } from "@/lib/calls.shared";
@@ -445,6 +446,46 @@ export async function attributeCall(
   if (updateErr) throw updateErr;
 
   return { ok: true };
+}
+
+// POST /api/calls/:id/create-candidate — for a call the auto-resolution trigger
+// never matched to anyone (a genuinely new phone number), lets a human create the
+// candidate record right from the unattributed queue instead of being stuck. Only
+// ever fills a call whose candidate_id is still null — same rule attributeCall
+// follows for application_id, so this never fights the trigger for a call it
+// already claimed.
+export async function createCandidateFromCall(
+  supabase: SupabaseClient<Database>,
+  callId: number,
+  input: { name: string; phone: string | null; createdBy: string }
+): Promise<
+  | { ok: true; candidateId: string }
+  | { ok: false; reason: "call_not_found" | "already_linked" | "insert_failed" }
+> {
+  const { data: call, error: callErr } = await supabase
+    .from("calls")
+    .select("id, candidate_id")
+    .eq("id", callId)
+    .maybeSingle();
+  if (callErr) throw callErr;
+  if (!call) return { ok: false, reason: "call_not_found" };
+  if (call.candidate_id) return { ok: false, reason: "already_linked" };
+
+  const result = await createCandidate(supabase, {
+    name: input.name,
+    phone: input.phone,
+    createdBy: input.createdBy,
+  });
+  if ("error" in result) return { ok: false, reason: "insert_failed" };
+
+  const { error: updateErr } = await supabase
+    .from("calls")
+    .update({ candidate_id: result.candidate.id })
+    .eq("id", callId)
+    .is("candidate_id", null);
+  if (updateErr) throw updateErr;
+
+  return { ok: true, candidateId: result.candidate.id };
 }
 
 // Completes a pending next_action on a call: creates a follow-up or interview

@@ -236,3 +236,99 @@ export async function getCandidateDetail(
     applications,
   };
 }
+
+export type CreateCandidateInput = {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  source?: string | null;
+  notes?: string | null;
+  resumeUrl?: string | null;
+  processId?: string | null;
+  jobId?: string | null;
+  createdBy: string;
+};
+
+export type CreateCandidateResult =
+  | {
+      candidate: { id: string; name: string; phone: string | null; email: string | null; source: string | null; notes: string | null; is_duplicate: boolean; resume_url: string | null; created_at: string };
+      application: { id: string; status: ApplicationStatus; job_id: string; pipeline_stage_id: string | null; created_at: string } | null;
+      applicationError: null;
+    }
+  | {
+      candidate: { id: string; name: string; phone: string | null; email: string | null; source: string | null; notes: string | null; is_duplicate: boolean; resume_url: string | null; created_at: string };
+      application: null;
+      applicationError: { code: "duplicate_application" | "application_failed"; message: string };
+    }
+  | { error: "insert_failed" };
+
+// Shared by POST /api/candidates and the "create candidate from a call" flow
+// (POST /api/calls/:id/create-candidate) — a candidate can exist before they're
+// put forward for a role, which is exactly the "new" allocation bucket Phase 4
+// reads, so `jobId` (and the application it creates) stays optional here.
+export async function createCandidate(
+  supabase: SupabaseClient<Database>,
+  input: CreateCandidateInput
+): Promise<CreateCandidateResult> {
+  const { data: candidate, error: insertError } = await supabase
+    .from("candidates")
+    .insert({
+      name: input.name,
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim().toLowerCase() || null,
+      source: input.source?.trim() || null,
+      notes: input.notes?.trim() || null,
+      resume_url: input.resumeUrl?.trim() || null,
+      process_id: input.processId || null,
+      created_by: input.createdBy,
+    })
+    .select("id, name, phone, email, source, notes, is_duplicate, resume_url, created_at")
+    .single();
+
+  if (insertError || !candidate) {
+    console.error("createCandidate insert failed", insertError);
+    return { error: "insert_failed" };
+  }
+
+  if (!input.jobId) return { candidate, application: null, applicationError: null };
+
+  // The job carries its own pipeline template, so the opening stage is whatever that
+  // template's first stage is — never a hardcoded "New" (claude.md > DO NOT).
+  const { data: job } = await supabase.from("jobs").select("pipeline_template_id").eq("id", input.jobId).maybeSingle();
+  let firstStageId: string | null = null;
+  if (job) {
+    const { data: stage } = await supabase
+      .from("pipeline_stages")
+      .select("id")
+      .eq("pipeline_template_id", job.pipeline_template_id)
+      .order("sequence_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    firstStageId = stage?.id ?? null;
+  }
+
+  const { data: application, error: applicationError } = await supabase
+    .from("applications")
+    .insert({ candidate_id: candidate.id, job_id: input.jobId, pipeline_stage_id: firstStageId, status: "new" })
+    .select("id, status, job_id, pipeline_stage_id, created_at")
+    .single();
+
+  if (applicationError) {
+    // UNIQUE(candidate_id, job_id) — the candidate row itself was still created, so
+    // report the conflict rather than pretending the whole request failed.
+    const conflict = applicationError.code === "23505";
+    console.error("createCandidate application insert failed", applicationError);
+    return {
+      candidate,
+      application: null,
+      applicationError: {
+        code: conflict ? "duplicate_application" : "application_failed",
+        message: conflict
+          ? "That candidate already has an application for this job."
+          : "Candidate created, but the application could not be added.",
+      },
+    };
+  }
+
+  return { candidate, application, applicationError: null };
+}
