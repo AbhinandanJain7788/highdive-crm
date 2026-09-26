@@ -473,12 +473,31 @@ export async function completeCallAction(
   if (!call) return { error: "call_not_found" };
   if (!call.next_action_type || !call.next_action_at) return { error: "action_not_pending" };
   if (!call.candidate_id) return { error: "no_candidate" };
-  if (!call.application_id) return { error: "no_application" };
+
+  // The call itself may not carry an application_id directly (e.g. it was
+  // logged before the candidate was attributed to a job). Fall back to the
+  // candidate's most recent application, same as the CRM Status column does,
+  // so scheduling still works whenever the candidate has one on file.
+  let applicationId = call.application_id;
+  let jobClientId = call.application?.job?.client_id ?? null;
+  if (!applicationId) {
+    const { data: fallbackApp, error: fallbackErr } = await supabase
+      .from("applications")
+      .select("id, job:jobs(id, client_id)")
+      .eq("candidate_id", call.candidate_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (fallbackErr) throw fallbackErr;
+    if (!fallbackApp) return { error: "no_application" };
+    applicationId = fallbackApp.id;
+    jobClientId = fallbackApp.job?.client_id ?? null;
+  }
 
   const { data: app, error: appErr } = await supabase
     .from("applications")
     .select("id, candidate_id")
-    .eq("id", call.application_id)
+    .eq("id", applicationId)
     .maybeSingle();
   if (appErr) throw appErr;
   if (!app || app.candidate_id !== call.candidate_id) return { error: "application_not_found" };
@@ -489,7 +508,7 @@ export async function completeCallAction(
     const { data: fu, error: fuErr } = await supabase
       .from("follow_ups")
       .insert({
-        application_id: call.application_id,
+        application_id: applicationId,
         candidate_id: call.candidate_id,
         due_at: dueAtIso,
         assign_to: input.assignTo,
@@ -512,15 +531,14 @@ export async function completeCallAction(
   }
 
   // interview_scheduled
-  const clientId = call.application?.job?.client_id;
-  if (!clientId) return { error: "application_not_found" };
+  if (!jobClientId) return { error: "application_not_found" };
 
   const { data: iv, error: ivErr } = await supabase
     .from("interviews")
     .insert({
-      application_id: call.application_id,
+      application_id: applicationId,
       candidate_id: call.candidate_id,
-      client_id: clientId,
+      client_id: jobClientId,
       scheduled_at: dueAtIso,
       interviewer_id: input.interviewerId ?? null,
       location: input.location?.trim() || null,
