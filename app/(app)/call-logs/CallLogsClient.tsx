@@ -693,17 +693,21 @@ export default function CallLogsClient({
         </div>
         <div
           onClick={() => setCallLogsTab(callLogsTab === "all" ? "unattributed" : "all")}
-          title={callLogsTab === "all" ? "Unattributed Calls" : "Back to Call Logs"}
+          title={callLogsTab === "all" ? "Calls not yet linked to a candidate or job" : "Back to all Call Logs"}
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 6,
-            border: "1px solid #E7E9EE",
-            background: callLogsTab === "unattributed" ? "#1D2433" : "#FFFFFF",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            gap: 7,
+            height: 34,
+            padding: "0 12px",
+            borderRadius: 7,
+            border: "1px solid #E7E9EE",
+            background: callLogsTab === "unattributed" ? "#1D2433" : "#FFFFFF",
             cursor: "pointer",
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: callLogsTab === "unattributed" ? "#FFFFFF" : "#4B5565",
+            whiteSpace: "nowrap",
           }}
         >
           <svg width="14" height="14" viewBox="0 0 16 16">
@@ -715,6 +719,22 @@ export default function CallLogsClient({
             />
             <path d="M4 6.5h8" stroke={callLogsTab === "unattributed" ? "#FFFFFF" : "#4B5565"} strokeWidth="1.3" />
           </svg>
+          {callLogsTab === "unattributed" ? "Back to Call Logs" : "Unattributed"}
+          {callLogsTab === "all" && unattributedTotal > 0 && (
+            <span
+              style={{
+                background: "#B42318",
+                color: "#FFFFFF",
+                borderRadius: 20,
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "1px 7px",
+                lineHeight: "16px",
+              }}
+            >
+              {unattributedTotal}
+            </span>
+          )}
         </div>
         {loading && <span style={{ fontSize: 12.5, color: "#9AA1AC" }}>Loading…</span>}
       </div>
