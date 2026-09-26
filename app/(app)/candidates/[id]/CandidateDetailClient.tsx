@@ -80,6 +80,53 @@ export default function CandidateDetailClient({
     };
   }, [canAssign, canEdit]);
 
+  // A candidate with zero applications is a dead end everywhere else on this panel
+  // (status, recruiter, follow-ups and interviews all require `primary`) — this is
+  // the one place to get them out of that state. Browsing the job book is a
+  // manager+ action (see GET /api/jobs), so a recruiter without that permission
+  // simply never sees this control rather than hitting a 403.
+  const [jobOptions, setJobOptions] = useState<{ id: string; title: string }[]>([]);
+  const [applyJobId, setApplyJobId] = useState("");
+  const [applyingJob, setApplyingJob] = useState(false);
+  const [applyJobError, setApplyJobError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (primary || !canEdit) return;
+    let cancelled = false;
+    fetch("/api/jobs?status=open")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((body) => {
+        if (!cancelled) setJobOptions((body.data ?? []).map((j: { id: string; title: string }) => ({ id: j.id, title: j.title })));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [primary, canEdit]);
+
+  async function submitApplyToJob() {
+    if (!applyJobId) return;
+    setApplyingJob(true);
+    setApplyJobError(null);
+    try {
+      const res = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ candidateId: candidate.id, jobId: applyJobId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? "Could not create the application.");
+      }
+      if (!onClose) router.refresh();
+      else window.location.reload();
+    } catch (err) {
+      setApplyJobError(err instanceof Error ? err.message : "Could not create the application.");
+    } finally {
+      setApplyingJob(false);
+    }
+  }
+
   async function submitAssign() {
     if (!primary) return;
     setAssigning(true);
@@ -623,6 +670,47 @@ export default function CandidateDetailClient({
                 {resumeLabel}
               </div>
             </div>
+
+            {!primary && canEdit && jobOptions.length > 0 && (
+              <div style={{ marginTop: 14, borderTop: "1px solid #EEF0F4", paddingTop: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#9AA1AC", textTransform: "uppercase", marginBottom: 8 }}>
+                  This candidate has no job applied for yet
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <select
+                    value={applyJobId}
+                    onChange={(e) => setApplyJobId(e.target.value)}
+                    style={{ flex: 1, padding: "8px 10px", border: "1px solid #D9DCE3", borderRadius: 6, fontSize: 13 }}
+                  >
+                    <option value="">Select a job…</option>
+                    {jobOptions.map((j) => (
+                      <option key={j.id} value={j.id}>{j.title}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={submitApplyToJob}
+                    disabled={!applyJobId || applyingJob}
+                    style={{
+                      background: !applyJobId || applyingJob ? "#F7F8FA" : "#1A56DB",
+                      border: !applyJobId || applyingJob ? "1px solid #E7E9EE" : "none",
+                      color: !applyJobId || applyingJob ? "#9AA1AC" : "#FFFFFF",
+                      borderRadius: 6,
+                      padding: "8px 16px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: !applyJobId || applyingJob ? "default" : "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {applyingJob ? "Saving…" : "Apply to Job"}
+                  </button>
+                </div>
+                {applyJobError && <div style={{ fontSize: 12, color: "#B42318", marginTop: 8 }}>{applyJobError}</div>}
+                <div style={{ fontSize: 11.5, color: "#9AA1AC", marginTop: 6 }}>
+                  Once applied, this candidate shows up in Allocations to be assigned a recruiter.
+                </div>
+              </div>
+            )}
 
             {otherApplications.length > 0 && (
               <div style={{ marginTop: 16, borderTop: "1px solid #EEF0F4", paddingTop: 12 }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { avatarLetterFor } from "@/lib/mock";
 import { fmtDuration, callDispositionStyles, callDirectionLabels } from "@/lib/mock/styles";
 import {
@@ -837,7 +838,16 @@ export default function CallLogsClient({
                   {l.arrow.label}
                 </div>
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{l.candidateName}</div>
+                  {l.candidateId ? (
+                    <Link
+                      href={`/candidates/${l.candidateId}`}
+                      style={{ fontSize: 13.5, fontWeight: 600, color: "#1A56DB", textDecoration: "none" }}
+                    >
+                      {l.candidateName}
+                    </Link>
+                  ) : (
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D2433" }}>{l.candidateName}</div>
+                  )}
                   <div style={{ fontSize: 12, color: "#9AA1AC", marginBottom: 4 }}>{l.phone}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {l.hasRecording ? (
