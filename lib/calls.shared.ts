@@ -54,4 +54,9 @@ export type CandidateJobOption = { applicationId: string; jobId: string; jobTitl
 
 export type UnattributedCallRow = CallRow & {
   candidateJobs: CandidateJobOption[];
+  // A candidate whose phone matches this call's number by digits alone, when the
+  // call itself has no candidate_id — the pipeline's own match failed (often a
+  // format mismatch), but a human can confirm it's the same person instead of a
+  // duplicate candidate getting created for someone who already exists.
+  suggestedCandidate: { id: string; name: string } | null;
 };

@@ -155,31 +155,32 @@ function lastDigits(value: string, n = 10): string {
 
 // The Android pipeline leaves `candidate_id` null whenever its own number match
 // failed (claude.md's boundary means this codebase can't fix that matching or
-// write the link back) — but this is a pure read-time lookup against
-// `candidates.phone` to show the right name instead of "Unknown Caller". It never
-// writes to `calls`, never sets `candidate_id`, and never touches the pipeline.
-async function resolveNamesByNumber(
+// write the link back on its own say-so) — but this is a pure read-time lookup
+// against `candidates.phone` to show the right name instead of "Unknown Caller",
+// and to let a human confirm the same match through the unattributed queue
+// (see linkCallToExistingCandidate). It never writes to `calls` itself.
+async function resolveCandidatesByNumber(
   supabase: SupabaseClient<Database>,
   numbers: string[]
-): Promise<Map<string, string>> {
+): Promise<Map<string, { id: string; name: string }>> {
   const targets = [...new Set(numbers.map((n) => lastDigits(n)).filter((d) => d.length >= 7))];
   if (!targets.length) return new Map();
 
   const patterns = targets.map((d) => `phone.ilike.%${d.split("").join("%")}%`);
-  const { data, error } = await supabase.from("candidates").select("name, phone").or(patterns.join(","));
+  const { data, error } = await supabase.from("candidates").select("id, name, phone").or(patterns.join(","));
   if (error || !data) return new Map();
 
-  const nameByDigits = new Map<string, string>();
+  const byDigits = new Map<string, { id: string; name: string }>();
   for (const c of data) {
     if (!c.phone) continue;
     const digits = lastDigits(c.phone);
-    if (!nameByDigits.has(digits)) nameByDigits.set(digits, c.name);
+    if (!byDigits.has(digits)) byDigits.set(digits, { id: c.id, name: c.name });
   }
 
-  const result = new Map<string, string>();
+  const result = new Map<string, { id: string; name: string }>();
   for (const number of numbers) {
-    const name = nameByDigits.get(lastDigits(number));
-    if (name) result.set(number, name);
+    const match = byDigits.get(lastDigits(number));
+    if (match) result.set(number, match);
   }
   return result;
 }
@@ -187,10 +188,10 @@ async function resolveNamesByNumber(
 async function applyNameFallback(supabase: SupabaseClient<Database>, rows: CallRow[]): Promise<void> {
   const unresolved = rows.filter((r) => !r.candidateId && r.phone && r.phone !== "--");
   if (!unresolved.length) return;
-  const nameByNumber = await resolveNamesByNumber(supabase, unresolved.map((r) => r.phone));
+  const byNumber = await resolveCandidatesByNumber(supabase, unresolved.map((r) => r.phone));
   for (const r of unresolved) {
-    const name = nameByNumber.get(r.phone);
-    if (name) r.candidateName = name;
+    const match = byNumber.get(r.phone);
+    if (match) r.candidateName = match.name;
   }
 }
 
@@ -404,8 +405,17 @@ export async function getUnattributedCalls(
     }
   }
 
+  const uncandidated = rows.filter((r) => !r.candidateId && r.phone && r.phone !== "--");
+  const suggestedByNumber = uncandidated.length
+    ? await resolveCandidatesByNumber(supabase, uncandidated.map((r) => r.phone))
+    : new Map<string, { id: string; name: string }>();
+
   return {
-    rows: rows.map((r) => ({ ...r, candidateJobs: (r.candidateId && jobsByCandidate.get(r.candidateId)) || [] })),
+    rows: rows.map((r) => ({
+      ...r,
+      candidateJobs: (r.candidateId && jobsByCandidate.get(r.candidateId)) || [],
+      suggestedCandidate: r.candidateId ? null : suggestedByNumber.get(r.phone) ?? null,
+    })),
     total,
   };
 }
@@ -486,6 +496,49 @@ export async function createCandidateFromCall(
   if (updateErr) throw updateErr;
 
   return { ok: true, candidateId: result.candidate.id };
+}
+
+// POST /api/calls/:id/link-candidate — the "not a new person, just an unmatched
+// call" counterpart to createCandidateFromCall. The pipeline's own trigger owns
+// number matching (claude.md's boundary), so this never guesses on its own; it
+// only accepts a candidateId the human picked, and only writes it after
+// independently re-verifying that candidate's phone shares the call's last-10-
+// digit key — the same comparison the unattributed queue used to suggest it.
+// That keeps a compromised/careless client from linking a call to an arbitrary
+// unrelated candidate.
+export async function linkCallToExistingCandidate(
+  supabase: SupabaseClient<Database>,
+  callId: number,
+  candidateId: string
+): Promise<{ ok: true } | { ok: false; reason: "call_not_found" | "already_linked" | "candidate_not_found" | "phone_mismatch" }> {
+  const { data: call, error: callErr } = await supabase
+    .from("calls")
+    .select("id, candidate_id, number")
+    .eq("id", callId)
+    .maybeSingle();
+  if (callErr) throw callErr;
+  if (!call) return { ok: false, reason: "call_not_found" };
+  if (call.candidate_id) return { ok: false, reason: "already_linked" };
+
+  const { data: candidate, error: candErr } = await supabase
+    .from("candidates")
+    .select("id, phone")
+    .eq("id", candidateId)
+    .maybeSingle();
+  if (candErr) throw candErr;
+  if (!candidate) return { ok: false, reason: "candidate_not_found" };
+  if (!call.number || !candidate.phone || lastDigits(call.number) !== lastDigits(candidate.phone)) {
+    return { ok: false, reason: "phone_mismatch" };
+  }
+
+  const { error: updateErr } = await supabase
+    .from("calls")
+    .update({ candidate_id: candidateId })
+    .eq("id", callId)
+    .is("candidate_id", null);
+  if (updateErr) throw updateErr;
+
+  return { ok: true };
 }
 
 // Completes a pending next_action on a call: creates a follow-up or interview

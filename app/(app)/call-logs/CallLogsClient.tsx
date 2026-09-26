@@ -119,6 +119,7 @@ export default function CallLogsClient({
   const [newCandidateOpenFor, setNewCandidateOpenFor] = useState<number | null>(null);
   const [newCandidateName, setNewCandidateName] = useState("");
   const [creatingCandidate, setCreatingCandidate] = useState<number | null>(null);
+  const [linkingSuggested, setLinkingSuggested] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/team")
@@ -546,6 +547,35 @@ export default function CallLogsClient({
       setAttributeError(err instanceof Error ? err.message : "Could not create candidate.");
     } finally {
       setCreatingCandidate(null);
+    }
+  }
+
+  async function linkSuggestedCandidate(row: UnattributedCallRow) {
+    if (!row.suggestedCandidate) return;
+    setLinkingSuggested(row.id);
+    setAttributeError(null);
+    try {
+      const res = await fetch(`/api/calls/${row.id}/link-candidate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ candidateId: row.suggestedCandidate.id }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error?.message ?? "Could not link candidate.");
+      }
+      const updated = body?.data as CallRow | undefined;
+      setUnattributedRows((prev) =>
+        prev.map((r) =>
+          r.id === row.id
+            ? { ...r, candidateId: updated?.candidateId ?? row.suggestedCandidate!.id, candidateName: updated?.candidateName ?? row.suggestedCandidate!.name }
+            : r
+        )
+      );
+    } catch (err) {
+      setAttributeError(err instanceof Error ? err.message : "Could not link candidate.");
+    } finally {
+      setLinkingSuggested(null);
     }
   }
 
@@ -1132,6 +1162,23 @@ export default function CallLogsClient({
                           style={{ background: "#FFFFFF", border: "1px solid #D9DCE3", color: "#4B5565", borderRadius: 6, padding: "6px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                         >
                           Cancel
+                        </button>
+                      </div>
+                    ) : l.suggestedCandidate ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                        <button
+                          onClick={() => linkSuggestedCandidate(l)}
+                          disabled={linkingSuggested === l.id}
+                          style={{ background: "#1A56DB", border: "none", color: "#FFFFFF", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: linkingSuggested === l.id ? "default" : "pointer" }}
+                          title="Same phone number as this existing candidate — link this call to them instead of creating a duplicate."
+                        >
+                          {linkingSuggested === l.id ? "Linking…" : `Link: ${l.suggestedCandidate.name}`}
+                        </button>
+                        <button
+                          onClick={() => openNewCandidate(l)}
+                          style={{ background: "none", border: "none", color: "#9AA1AC", fontSize: 11, cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                        >
+                          Not them? New candidate
                         </button>
                       </div>
                     ) : (
